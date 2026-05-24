@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+dist/
+build/
+
+# State (runtime files — not tracked)
+state/comparison.json
+state/alerts.jsonl
+state/status.json
+state/trades.jsonl
+state/heartbeat.json
+state/hypotheses.jsonl
+state/history/
+
+# Parquet lake — lives in crypto-lake-rs, not here
+*.parquet
+*.parquet.bad
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
