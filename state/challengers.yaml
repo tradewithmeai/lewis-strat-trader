@@ -3,6 +3,8 @@
 # Remove or comment out a strategy to stop tracking it.
 
 challengers:
+  - breakout
+  - daily_swing
   - mtf_ls
   - mtf_confluence
   - ema_crossover

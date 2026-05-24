@@ -59,6 +59,27 @@ REGISTRY: dict[str, dict] = {
             "stop_loss_pct": [3.0, 5.0, 8.0],
         },
     },
+    "breakout": {
+        "cls": "local_system.strategies.breakout.BreakoutStrategy",
+        "grid": {
+            "entry_period": [10, 20, 40, 55],
+            "exit_period": [5, 10, 20],
+            "stop_loss_pct": [5.0, 8.0, 12.0],
+        },
+    },
+    "daily_swing": {
+        "cls": "local_system.strategies.daily_swing.DailySwingStrategy",
+        "grid": {
+            "trend_ema_period": [100, 200],
+            "macd_fast": [9, 12],
+            "macd_slow": [21, 26],
+            "rsi_long_entry": [30, 35, 40],
+            "rsi_short_entry": [60, 65, 70],
+            "rsi_long_exit": [60, 65, 70],
+            "rsi_short_exit": [30, 35, 40],
+            "stop_loss_pct": [5.0, 8.0, 12.0],
+        },
+    },
     "mtf_ls": {
         "cls": "local_system.strategies.mtf_ls.MtfLsStrategy",
         "grid": {
