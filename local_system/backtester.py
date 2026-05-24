@@ -151,73 +151,84 @@ def run_backtest(
     lows = df_test["low"].values
     times = df_test.index
 
-    position = 0  # 0 = flat, 1 = long
+    position = 0  # 0 = flat, +1 = long, -1 = short
     entry_price = 0.0
     entry_time = None
     trades: list[Trade] = []
     bar_returns = np.zeros(len(df_test))
 
-    # Read stop_loss_pct from strategy params if present (as a fraction, e.g. 0.03)
     stop_loss_frac = strategy.params.get("stop_loss_pct", 0)
     if stop_loss_frac:
         stop_loss_frac = stop_loss_frac / 100.0
 
-    # Pre-concatenate train + test into one DataFrame so we can slice efficiently
-    # instead of doing O(n²) pd.concat on every bar.
     full_df = pd.concat([df_train, df_test])
+
+    def _sync_strategy_flat() -> None:
+        """Tell the strategy it's been force-exited (stop loss)."""
+        strategy._in_position = False
+        if hasattr(strategy, "_side"):
+            strategy._side = 0
 
     for i in range(len(df_test)):
         price = closes[i]
         low = lows[i]
+        high = highs[i]
 
-        # Check stop-loss before consulting strategy signal
-        if position == 1 and stop_loss_frac:
-            stop_price = entry_price * (1 - stop_loss_frac)
-            if low <= stop_price:
-                exit_price = stop_price * (1 - SLIPPAGE_BPS)
-                gross_ret = (exit_price - entry_price) / entry_price
-                net_ret = gross_ret - ROUND_TRIP_COST
-                bar_returns[i] = net_ret
-                trades.append(
-                    Trade(
-                        entry_time=entry_time,
-                        exit_time=times[i],
-                        entry_price=entry_price,
-                        exit_price=exit_price,
-                        pnl_pct=net_ret,
+        # ── Stop-loss check (before signal, uses bar high/low) ────────────────
+        if stop_loss_frac:
+            if position == 1:
+                stop_price = entry_price * (1 - stop_loss_frac)
+                if low <= stop_price:
+                    exit_price = stop_price * (1 - SLIPPAGE_BPS)
+                    net_ret = (exit_price - entry_price) / entry_price - ROUND_TRIP_COST
+                    bar_returns[i] = net_ret
+                    trades.append(
+                        Trade(entry_time, times[i], entry_price, exit_price, net_ret, "long")
                     )
-                )
-                position = 0
-                # Sync strategy state so it knows we're flat
-                strategy._in_position = False
-                continue
+                    position = 0
+                    _sync_strategy_flat()
+                    continue
+            elif position == -1:
+                stop_price = entry_price * (1 + stop_loss_frac)
+                if high >= stop_price:
+                    exit_price = stop_price * (1 + SLIPPAGE_BPS)
+                    net_ret = (entry_price - exit_price) / entry_price - ROUND_TRIP_COST
+                    bar_returns[i] = net_ret
+                    trades.append(
+                        Trade(entry_time, times[i], entry_price, exit_price, net_ret, "short")
+                    )
+                    position = 0
+                    _sync_strategy_flat()
+                    continue
 
-        # Slice from start of train data up to and including current test bar
         lookback_df = full_df.iloc[: split + i + 1]
-
         sig = strategy.signal(lookback_df)
 
-        if position == 0 and sig == 1:
-            # Enter long at close with slippage
-            entry_price = price * (1 + SLIPPAGE_BPS)
-            entry_time = times[i]
-            position = 1
+        # ── Enter ─────────────────────────────────────────────────────────────
+        if position == 0:
+            if sig == 1:
+                entry_price = price * (1 + SLIPPAGE_BPS)
+                entry_time = times[i]
+                position = 1
+            elif sig == -1:
+                entry_price = price * (1 - SLIPPAGE_BPS)
+                entry_time = times[i]
+                position = -1
 
+        # ── Exit long ─────────────────────────────────────────────────────────
         elif position == 1 and sig != 1:
-            # Exit long
             exit_price = price * (1 - SLIPPAGE_BPS)
-            gross_ret = (exit_price - entry_price) / entry_price
-            net_ret = gross_ret - ROUND_TRIP_COST
+            net_ret = (exit_price - entry_price) / entry_price - ROUND_TRIP_COST
             bar_returns[i] = net_ret
-            trades.append(
-                Trade(
-                    entry_time=entry_time,
-                    exit_time=times[i],
-                    entry_price=entry_price,
-                    exit_price=exit_price,
-                    pnl_pct=net_ret,
-                )
-            )
+            trades.append(Trade(entry_time, times[i], entry_price, exit_price, net_ret, "long"))
+            position = 0
+
+        # ── Exit short ────────────────────────────────────────────────────────
+        elif position == -1 and sig != -1:
+            exit_price = price * (1 + SLIPPAGE_BPS)
+            net_ret = (entry_price - exit_price) / entry_price - ROUND_TRIP_COST
+            bar_returns[i] = net_ret
+            trades.append(Trade(entry_time, times[i], entry_price, exit_price, net_ret, "short"))
             position = 0
 
     # Build equity curve from bar returns

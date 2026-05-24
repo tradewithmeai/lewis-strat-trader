@@ -59,6 +59,18 @@ REGISTRY: dict[str, dict] = {
             "stop_loss_pct": [3.0, 5.0, 8.0],
         },
     },
+    "mtf_ls": {
+        "cls": "local_system.strategies.mtf_ls.MtfLsStrategy",
+        "grid": {
+            "trend_ema_period": [100, 200],
+            "macd_fast": [9, 12],
+            "macd_slow": [21, 26],
+            "rsi_long_entry": [35, 40, 45],
+            "rsi_short_entry": [55, 60, 65],
+            "vwap_band_pct": [1.0, 2.0],
+            "stop_loss_pct": [3.0, 5.0, 8.0],
+        },
+    },
 }
 
 
