@@ -10,9 +10,10 @@ Inspired by Lewis Jackson's YouTube video
 
 ## What it does
 
-- **Loads historical OHLCV data** from a local [crypto-lake-rs](https://github.com/your-org/crypto-lake-rs)
+- **Loads historical OHLCV data** from a local [crypto-lake-rs](https://github.com/tradewithmeai/crypto-lake-rs)
   parquet store (hive-partitioned, DuckDB-queryable)
 - **Walk-forward backtests** strategies: train on 80%, test on 20%, no lookahead
+
 - **Scores strategies** with annualised Sharpe (block-bootstrap 95% CI), max drawdown, win rate
 - **Traffic light promotion**: challenger strategies move RED → ORANGE → GREEN over time if they
   consistently beat the active strategy; a human then decides whether to switch
@@ -47,7 +48,7 @@ state/
 
 1. Python 3.11+
 2. [uv](https://docs.astral.sh/uv/) package manager
-3. A running [crypto-lake-rs](https://github.com/your-org/crypto-lake-rs) instance with
+3. A running [crypto-lake-rs](https://github.com/tradewithmeai/crypto-lake-rs) instance with
    backfilled BTCUSDT 1m bars
 
 ---
