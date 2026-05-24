@@ -48,6 +48,17 @@ REGISTRY: dict[str, dict] = {
             "stop_loss_pct": [3.0, 5.0, 8.0],
         },
     },
+    "mtf_confluence": {
+        "cls": "local_system.strategies.mtf_confluence.MtfConfluenceStrategy",
+        "grid": {
+            "trend_ema_period": [100, 200],
+            "macd_fast": [9, 12],
+            "macd_slow": [21, 26],
+            "rsi_entry": [40, 45, 50],
+            "vwap_band_pct": [1.0, 1.5, 2.5],
+            "stop_loss_pct": [3.0, 5.0, 8.0],
+        },
+    },
 }
 
 

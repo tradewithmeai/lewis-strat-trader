@@ -3,5 +3,6 @@
 # Remove or comment out a strategy to stop tracking it.
 
 challengers:
+  - mtf_confluence
   - ema_crossover
   - rsi_meanrev
