@@ -19,7 +19,7 @@ from local_system.strategies.base import Strategy
 # Default hyperparameters — can be overridden via params dict
 _DEFAULTS = {
     "regime_signal_min": 0.05,  # min bull-minus-bear probability to consider entry
-    "rsi_period": 14,
+    "rsi_period": 7,  # crypto: shorter period responds faster to volatile moves
     "rsi_entry": 40,  # enter long when RSI < this (oversold in bull regime, 1h bars)
     "rsi_exit": 60,  # exit when RSI > this (overbought, 1h bars)
     "stop_loss_pct": 3.0,  # exit when price falls >3% from entry

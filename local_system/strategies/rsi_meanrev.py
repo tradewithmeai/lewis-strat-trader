@@ -14,9 +14,9 @@ import pandas as pd
 from local_system.strategies.base import Strategy
 
 _DEFAULTS = {
-    "rsi_period": 14,
-    "rsi_entry": 35,  # oversold on 1h bars
-    "rsi_exit": 65,  # overbought on 1h bars
+    "rsi_period": 7,  # crypto: shorter period responds faster to volatile moves
+    "rsi_entry": 25,  # oversold on 1h bars
+    "rsi_exit": 70,  # overbought on 1h bars
     "stop_loss_pct": 3.0,
 }
 
