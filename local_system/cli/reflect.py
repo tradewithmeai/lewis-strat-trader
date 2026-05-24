@@ -1,13 +1,17 @@
 """
-/reflect-now — run a full backtest cycle on all strategies and update the
+/reflect-now -- run a full backtest cycle on all strategies and update the
 traffic light state.
 
 Steps:
-1. Load 1m bars from the lake (configurable date range, default last 2 years)
+1. Load 1m bars from the lake (configurable date range, default last 3 years)
 2. Run walk-forward backtest on active strategy and all challengers
 3. Print BacktestResult summaries
 4. Update state/comparison.json with new scores and traffic light states
 5. Print updated traffic light table
+
+Active strategy:  state/strategy.yaml   (strategy name + params)
+Challengers:      state/challengers.yaml (list of strategy names)
+Strategy classes: local_system/strategies/registry.py
 
 Usage (from repo root):
     uv run python -m local_system.cli.reflect
@@ -26,29 +30,47 @@ import yaml
 ROOT = Path(__file__).parent.parent.parent
 STATE_DIR = ROOT / "state"
 STRATEGY_FILE = STATE_DIR / "strategy.yaml"
+CHALLENGERS_FILE = STATE_DIR / "challengers.yaml"
 
 
 def _load_active_strategy():
-    from local_system.strategies.markov import MarkovStrategy
+    """Load the active strategy from state/strategy.yaml."""
+    from local_system.strategies.registry import get_strategy
 
-    params = {}
-    if STRATEGY_FILE.exists():
-        spec = yaml.safe_load(STRATEGY_FILE.read_text())
-        params = spec.get("params", {})
-    return MarkovStrategy(params=params)
+    if not STRATEGY_FILE.exists():
+        raise FileNotFoundError(f"Active strategy file not found: {STRATEGY_FILE}")
+
+    spec = yaml.safe_load(STRATEGY_FILE.read_text())
+    name = spec.get("strategy", "markov_regime")
+    params = spec.get("params", {})
+    return get_strategy(name, params)
 
 
 def _load_challengers():
-    from local_system.strategies.rsi_meanrev import RsiMeanRevStrategy
+    """Load challenger strategies from state/challengers.yaml."""
+    from local_system.strategies.registry import get_strategy
 
-    return [RsiMeanRevStrategy()]
+    if not CHALLENGERS_FILE.exists():
+        print(f"  [warn] {CHALLENGERS_FILE} not found — no challengers will run.")
+        return []
+
+    spec = yaml.safe_load(CHALLENGERS_FILE.read_text())
+    names = spec.get("challengers", [])
+    challengers = []
+    for name in names:
+        try:
+            challengers.append(get_strategy(name))
+        except ValueError as e:
+            print(f"  [warn] Skipping challenger '{name}': {e}")
+    return challengers
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run backtest reflection cycle")
-    parser.add_argument("--years", type=float, default=2.0, help="Years of history to backtest")
+    parser.add_argument("--years", type=float, default=3.0, help="Years of history to backtest")
     parser.add_argument("--from", dest="from_date", default=None, help="Start date YYYY-MM-DD")
     parser.add_argument("--to", dest="to_date", default=None, help="End date YYYY-MM-DD")
+    parser.add_argument("--symbol", default="BTCUSDT")
     args = parser.parse_args()
 
     end = date.fromisoformat(args.to_date) if args.to_date else date.today() - timedelta(days=1)
@@ -65,10 +87,7 @@ def main() -> None:
     from local_system.lake_adapter import load_bars, resample_ohlcv
     from local_system.scoring import traffic_light_summary, update_traffic_light
 
-    # Load backfill 1m data, then resample to 1h for strategy signals.
-    # Strategies (RSI mean-rev, Markov regime) are calibrated for hourly bars:
-    # RSI 30/65 thresholds on 1m fire every few minutes; on 1h they fire rarely.
-    df_1m = load_bars("BTCUSDT", start, end, backfill_only=True)
+    df_1m = load_bars(args.symbol, start, end, backfill_only=True)
     if df_1m.empty:
         print("ERROR: No data in lake for that date range.")
         return
@@ -82,7 +101,7 @@ def main() -> None:
     print(f"Backtesting active strategy: {active.name}")
     print("-" * 50)
     try:
-        active_result = run_backtest(df, active, symbol="BTCUSDT")
+        active_result = run_backtest(df, active, symbol=args.symbol)
         print(active_result.summary())
     except Exception as exc:
         print(f"ERROR backtesting {active.name}: {exc}")
@@ -94,11 +113,9 @@ def main() -> None:
         print(f"Backtesting challenger: {challenger.name}")
         print("-" * 50)
         try:
-            result = run_backtest(df, challenger, symbol="BTCUSDT")
+            result = run_backtest(df, challenger, symbol=args.symbol)
             print(result.summary())
             print()
-
-            # Update traffic light
             new_light = update_traffic_light(
                 strategy_name=challenger.name,
                 result=result,

@@ -1,7 +1,7 @@
 """
 optimize.py -- parameter grid search for a strategy.
 
-Sweeps a predefined parameter grid, runs walk-forward backtests for each
+Sweeps the strategy's registered grid, runs walk-forward backtests for each
 combination in parallel, and ranks results by Sharpe ratio.
 
 WARNING: selecting parameters based on test-set Sharpe is in-sample
@@ -9,10 +9,10 @@ optimisation. Use the best params as a starting point, then validate on a
 separate held-out period before going live.
 
 Usage:
-    uv run python -m local_system.cli.optimize --strategy rsi_meanrev
+    uv run python -m local_system.cli.optimize --strategy ema_crossover
     uv run python -m local_system.cli.optimize --strategy markov_regime
     uv run python -m local_system.cli.optimize --strategy rsi_meanrev --from 2023-01-01 --to 2025-12-31
-    uv run python -m local_system.cli.optimize --strategy rsi_meanrev --workers 8
+    uv run python -m local_system.cli.optimize --strategy ema_crossover --workers 8
 """
 
 from __future__ import annotations
@@ -30,27 +30,8 @@ import pandas as pd
 ROOT = Path(__file__).parent.parent.parent
 STATE_DIR = ROOT / "state"
 
-# ── Parameter grids ───────────────────────────────────────────────────────────
-# Add or remove values here to change the search space.
-
-GRIDS: dict[str, dict[str, list]] = {
-    "rsi_meanrev": {
-        "rsi_period": [7, 9, 14],
-        "rsi_entry": [25, 30, 35],
-        "rsi_exit": [60, 65, 70],
-        "stop_loss_pct": [2.0, 3.0, 5.0, 8.0],
-    },
-    "markov_regime": {
-        "rsi_period": [7, 9, 14],
-        "rsi_entry": [30, 35, 40],
-        "rsi_exit": [55, 60, 65],
-        "regime_signal_min": [0.03, 0.05, 0.10],
-    },
-}
-
 
 def _expand_grid(grid: dict[str, list]) -> list[dict]:
-    """Return all combinations of a parameter grid as a list of dicts."""
     keys = list(grid.keys())
     combos = list(itertools.product(*[grid[k] for k in keys]))
     return [dict(zip(keys, combo)) for combo in combos]
@@ -67,21 +48,11 @@ def _worker_init(df_bytes: bytes) -> None:
 
 
 def _run_one(task: tuple) -> dict:
-    """Run a single backtest in a worker process."""
     strategy_name, params, symbol = task
     from local_system.backtester import run_backtest
+    from local_system.strategies.registry import get_strategy
 
-    if strategy_name == "rsi_meanrev":
-        from local_system.strategies.rsi_meanrev import RsiMeanRevStrategy
-
-        strategy = RsiMeanRevStrategy(params=params)
-    elif strategy_name == "markov_regime":
-        from local_system.strategies.markov import MarkovStrategy
-
-        strategy = MarkovStrategy(params=params)
-    else:
-        return {**params, "error": f"Unknown strategy: {strategy_name}"}
-
+    strategy = get_strategy(strategy_name, params)
     try:
         result = run_backtest(_WORKER_DF, strategy, symbol=symbol)
         return {
@@ -105,9 +76,9 @@ def _run_one(task: tuple) -> dict:
 
 def _print_results(rows: list[dict], param_keys: list[str], strategy_name: str) -> None:
     try:
+        from rich import box
         from rich.console import Console
         from rich.table import Table
-        from rich import box
 
         console = Console(width=120)
         table = Table(
@@ -117,15 +88,17 @@ def _print_results(rows: list[dict], param_keys: list[str], strategy_name: str) 
             min_width=100,
         )
 
-        # Shorten param key names so columns don't truncate
-        short = {
-            k: k.replace("stop_loss_pct", "sl%")
-            .replace("regime_signal_min", "sig_min")
-            .replace("rsi_", "")
-            for k in param_keys
-        }
+        # Shorten param names so columns don't truncate
+        def _shorten(k: str) -> str:
+            return (
+                k.replace("stop_loss_pct", "sl%")
+                .replace("regime_signal_min", "sig_min")
+                .replace("use_trend_filter", "trend_f")
+                .replace("_period", "_per")
+            )
+
         for k in param_keys:
-            table.add_column(short[k], style="cyan", justify="right", min_width=6, no_wrap=True)
+            table.add_column(_shorten(k), style="cyan", justify="right", min_width=6, no_wrap=True)
         table.add_column("Sharpe", justify="right", min_width=7, no_wrap=True)
         table.add_column("95% CI", justify="right", style="dim", min_width=13, no_wrap=True)
         table.add_column("Ret%", justify="right", min_width=6, no_wrap=True)
@@ -156,7 +129,6 @@ def _print_results(rows: list[dict], param_keys: list[str], strategy_name: str) 
         console.print(f"[bold]{profitable}/{total}[/bold] combinations profitable (Sharpe > 0)\n")
 
     except ImportError:
-        # Fallback plain text
         header = "\t".join(
             param_keys + ["sharpe", "ci_low", "ci_high", "return%", "win%", "dd%", "trades"]
         )
@@ -188,15 +160,20 @@ def _save_csv(rows: list[dict], strategy_name: str, start: date, end: date) -> P
 
 
 def main() -> None:
+    from local_system.strategies.registry import get_grid, list_strategies
+
     parser = argparse.ArgumentParser(description="Parameter grid search for a strategy")
     parser.add_argument(
-        "--strategy", required=True, choices=list(GRIDS), help="Strategy to optimise"
+        "--strategy", required=True, choices=list_strategies(), help="Strategy to optimise"
     )
     parser.add_argument("--years", type=float, default=3.0, help="Years of history (default 3)")
     parser.add_argument("--from", dest="from_date", default=None, help="Start date YYYY-MM-DD")
     parser.add_argument("--to", dest="to_date", default=None, help="End date YYYY-MM-DD")
     parser.add_argument(
-        "--workers", type=int, default=max(2, (os.cpu_count() or 4) - 1), help="Parallel workers"
+        "--workers",
+        type=int,
+        default=max(2, (os.cpu_count() or 4) - 1),
+        help="Parallel workers",
     )
     parser.add_argument("--symbol", default="BTCUSDT")
     args = parser.parse_args()
@@ -220,13 +197,12 @@ def main() -> None:
     df = resample_ohlcv(df_1m, "1h")
     print(f"Loaded {len(df):,} 1h bars  ({start} to {end})\n")
 
-    grid = GRIDS[args.strategy]
+    grid = get_grid(args.strategy)
     param_combos = _expand_grid(grid)
     n = len(param_combos)
     print(f"Grid: {' x '.join(f'{k}({len(v)})' for k, v in grid.items())} = {n} combinations")
     print(f"Running backtests ({args.workers} workers)...\n", flush=True)
 
-    # Pickle the DataFrame once; each worker process deserialises it once via initializer
     df_bytes = pickle.dumps(df)
     tasks = [(args.strategy, params, args.symbol) for params in param_combos]
 
@@ -244,12 +220,10 @@ def main() -> None:
             print(f"\r  {completed}/{n}", end="", flush=True)
             results.append(fut.result())
 
-    print()  # newline after progress
+    print()
 
-    # Sort by Sharpe descending; errors last
     results.sort(key=lambda r: r.get("sharpe", -999), reverse=True)
 
-    # Warn about overfitting
     print(
         "\n[!] OVERFITTING WARNING: these results are from the same test window used to "
         "select params.\n    Validate the top combinations on a separate held-out period "
@@ -261,7 +235,6 @@ def main() -> None:
     csv_path = _save_csv(results, args.strategy, start, end)
     print(f"Full results saved to: {csv_path}\n")
 
-    # Print the single best combination clearly
     best = next((r for r in results if not r.get("error")), None)
     if best:
         print("Best combination:")
@@ -269,7 +242,10 @@ def main() -> None:
             print(f"  {k}: {best[k]}")
         print(f"  -> Sharpe {best['sharpe']:.3f}  [{best['ci_low']:.2f}, {best['ci_high']:.2f}]")
         print(
-            f"  -> Return {best['return_pct']:.1f}%  WinRate {best['win_rate_pct']:.1f}%  MaxDD {best['max_dd_pct']:.1f}%  Trades {best['n_trades']}\n"
+            f"  -> Return {best['return_pct']:.1f}%  "
+            f"WinRate {best['win_rate_pct']:.1f}%  "
+            f"MaxDD {best['max_dd_pct']:.1f}%  "
+            f"Trades {best['n_trades']}\n"
         )
 
 

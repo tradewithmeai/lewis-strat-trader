@@ -69,21 +69,46 @@ Copy `.env.example` to `.env` and fill in your `LAKE_ROOT` if you prefer dotenv 
 
 ---
 
+## How to add a strategy
+
+1. Write `local_system/strategies/my_strategy.py` — implement the `Strategy` base class
+2. Add an entry to `local_system/strategies/registry.py` with the class path and optimization grid
+3. Run the optimizer to find good parameters:
+   ```powershell
+   uv run python -m local_system.cli.optimize --strategy my_strategy
+   ```
+4. Add the strategy name to `state/challengers.yaml`
+5. Run a reflect cycle — it picks up the new challenger automatically
+
+That's it. No other files to edit.
+
+---
+
 ## Usage
 
 ### Run a backtest reflection cycle
 
 ```powershell
-uv run python -m local_system.cli.reflect                        # last 2 years
+uv run python -m local_system.cli.reflect                        # last 3 years
 uv run python -m local_system.cli.reflect --years 5             # 5 years
 uv run python -m local_system.cli.reflect --from 2022-01-01 --to 2024-12-31
 ```
 
 This will:
 1. Load 1m BTCUSDT bars from the lake and resample to 1h
-2. Run walk-forward backtest on the active strategy (markov_regime) and challengers
+2. Run walk-forward backtest on the active strategy and all challengers in `state/challengers.yaml`
 3. Print Sharpe with 95% CI, CAGR, win rate, max drawdown for each
 4. Update `state/comparison.json` with new scores and traffic light states
+
+### Optimise a strategy's parameters
+
+```powershell
+uv run python -m local_system.cli.optimize --strategy ema_crossover
+uv run python -m local_system.cli.optimize --strategy markov_regime --years 3
+```
+
+Sweeps the parameter grid defined in `registry.py`, runs all combinations in parallel,
+and prints results ranked by Sharpe. Best params are saved to `state/optimize_*.csv`.
 
 ### Check current status
 

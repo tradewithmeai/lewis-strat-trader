@@ -1,0 +1,7 @@
+# Challenger strategies to run on every reflect cycle.
+# Add a strategy name here once it is registered in local_system/strategies/registry.py.
+# Remove or comment out a strategy to stop tracking it.
+
+challengers:
+  - ema_crossover
+  - rsi_meanrev
