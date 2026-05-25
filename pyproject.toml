@@ -10,6 +10,7 @@ dependencies = [
     "duckdb",
     "scipy",
     "rich",
+    "yfinance",
 ]
 
 [build-system]

@@ -33,9 +33,9 @@ _DEFAULTS = {
     "macd_slow": 26,
     "macd_signal": 9,
     "rsi_period": 7,
-    "rsi_long_entry": 35,
+    "rsi_long_entry": 40,  # loosened from 35 — daily RSI rarely hits extremes
     "rsi_long_exit": 65,
-    "rsi_short_entry": 65,
+    "rsi_short_entry": 60,  # loosened from 65 — daily RSI rarely hits extremes
     "rsi_short_exit": 35,
     "stop_loss_pct": 5.0,
 }

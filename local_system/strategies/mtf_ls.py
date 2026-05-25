@@ -68,7 +68,10 @@ class MtfLsStrategy(Strategy):
     def signal(self, df: pd.DataFrame) -> int:
         """Return +1 (long/hold), -1 (short/hold), or 0 (flat)."""
         p = self._params
-        if len(df) < p["trend_ema_period"] * 24 + 1:
+        # Time-based warmup — works for both 1h and daily input bars.
+        days_span = (df.index[-1] - df.index[0]).days if len(df) > 1 else 0
+        min_days = p["trend_ema_period"] + p["macd_slow"] + p["macd_signal"] + 5
+        if days_span < min_days:
             return 0
 
         close = df["close"]

@@ -69,8 +69,10 @@ class MtfConfluenceStrategy(Strategy):
 
     def signal(self, df: pd.DataFrame) -> int:
         p = self._params
-        min_bars = p["trend_ema_period"] * 24 + 1  # daily EMA needs this many 1h bars
-        if len(df) < min_bars:
+        # Time-based warmup — works for both 1h and daily input bars.
+        days_span = (df.index[-1] - df.index[0]).days if len(df) > 1 else 0
+        min_days = p["trend_ema_period"] + p["macd_slow"] + p["macd_signal"] + 5
+        if days_span < min_days:
             return 0
 
         close = df["close"]

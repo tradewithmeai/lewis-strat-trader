@@ -190,14 +190,22 @@ def main() -> None:
     print("Loading bars...", flush=True)
 
     from local_system.backtester import run_walk_forward
-    from local_system.lake_adapter import load_bars, resample_ohlcv
+    from local_system.lake_adapter import load_bars, load_bars_yf, resample_ohlcv
 
     df_1m = load_bars(args.symbol, start, end, backfill_only=True)
     if df_1m.empty:
-        print("ERROR: No data in lake for that date range.")
-        return
-    df = resample_ohlcv(df_1m, "1h")
-    print(f"Loaded {len(df_1m):,} 1m bars -> {len(df):,} 1h bars\n")
+        # Yahoo Finance 1h data is limited to the last 730 days; use daily bars
+        # for longer windows. All strategies resample to daily internally so this
+        # is equivalent — daily close is the decision point for every signal.
+        print("Lake has no historical data — falling back to Yahoo Finance (daily bars).")
+        df = load_bars_yf(args.symbol, start, end, interval="1d")
+        if df.empty:
+            print("ERROR: No data from Yahoo Finance either.")
+            return
+        print(f"Loaded {len(df):,} daily bars from Yahoo Finance\n")
+    else:
+        df = resample_ohlcv(df_1m, "1h")
+        print(f"Loaded {len(df_1m):,} 1m bars -> {len(df):,} 1h bars\n")
 
     strategies = _load_all_strategies()
 

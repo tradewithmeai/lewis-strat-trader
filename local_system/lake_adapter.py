@@ -248,6 +248,54 @@ def available_date_range(symbol: str, exchange: str = "binance") -> tuple[date |
     return all_days[0], all_days[-1]
 
 
+def load_bars_yf(
+    symbol: str,
+    start: str | date,
+    end: str | date,
+    interval: str = "1h",
+) -> pd.DataFrame:
+    """
+    Load OHLCV bars from Yahoo Finance for backtesting when the local lake
+    doesn't have historical data. Returns a DataFrame indexed by UTC datetime
+    with columns: open, high, low, close, volume.
+
+    symbol: Binance-style e.g. 'BTCUSDT' → converted to Yahoo 'BTC-USD'
+    interval: '1h' or '1d'
+    """
+    import yfinance as yf
+
+    if isinstance(start, str):
+        start = date.fromisoformat(start)
+    if isinstance(end, str):
+        end = date.fromisoformat(end)
+
+    # Convert BTCUSDT → BTC-USD
+    yf_symbol = symbol.replace("USDT", "-USD").replace("BUSD", "-USD")
+
+    df = yf.download(
+        yf_symbol,
+        start=start.isoformat(),
+        end=end.isoformat(),
+        interval=interval,
+        auto_adjust=True,
+        progress=False,
+    )
+    if df.empty:
+        return pd.DataFrame()
+
+    # Flatten MultiIndex columns if present
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [c[0].lower() for c in df.columns]
+    else:
+        df.columns = [c.lower() for c in df.columns]
+
+    df = df.rename(columns={"adj close": "close"})
+    df.index = pd.to_datetime(df.index, utc=True)
+    df.index.name = "window_start"
+    df["source"] = "yfinance"
+    return df[["open", "high", "low", "close", "volume", "source"]]
+
+
 def bar_count(symbol: str, start: str | date, end: str | date, exchange: str = "binance") -> int:
     """Return the number of raw bars in the lake for a date range."""
     if isinstance(start, str):
