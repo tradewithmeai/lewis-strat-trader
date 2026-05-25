@@ -95,12 +95,13 @@ REGISTRY: dict[str, dict] = {
     "bollinger": {
         "cls": "local_system.strategies.bollinger.BollingerStrategy",
         "grid": {
-            "bb_period": [15, 20, 30],
+            "bb_period": [10, 15, 20, 25],
             "bb_std": [1.5, 2.0, 2.5],
-            "slope_ema_period": [50, 100],
-            "slope_lookback": [5, 10, 20],
-            "slope_threshold": [0.002, 0.003, 0.005],
+            "slope_ema_period": [20, 50],
+            "slope_lookback": [5, 10],
+            "slope_threshold": [0.003, 0.005, 0.008],
             "stop_loss_pct": [4.0, 6.0, 8.0],
+            "cooldown_days": [7, 14, 21],
         },
     },
 }

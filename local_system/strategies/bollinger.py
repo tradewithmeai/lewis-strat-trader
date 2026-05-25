@@ -31,12 +31,13 @@ import pandas as pd
 from local_system.strategies.base import Strategy
 
 _DEFAULTS = {
-    "bb_period": 20,  # SMA and sigma window (days)
-    "bb_std": 1.5,  # 1.5 std catches more touches than classic 2.0; optimised on 5y BTC
-    "slope_ema_period": 100,  # slower EMA gives more stable trend signal
-    "slope_lookback": 5,  # days over which to measure EMA slope
-    "slope_threshold": 0.005,  # |daily slope fraction| above which = trending; 0.5%/day is strong
+    "bb_period": 15,  # optimised on 5y BTC
+    "bb_std": 2.0,
+    "slope_ema_period": 20,  # short EMA tracks regime transitions faster
+    "slope_lookback": 10,  # 10-day slope on a 20-day EMA is stable
+    "slope_threshold": 0.005,  # direction check (slope>=0) does more work than this threshold
     "stop_loss_pct": 6.0,
+    "cooldown_days": 14,  # 14-day block after stop-out; halves MaxDD vs no cooldown
 }
 
 
@@ -46,6 +47,7 @@ class BollingerStrategy(Strategy):
         self._in_position = False
         self._side: int = 0  # +1 long, -1 short
         self._entry_mid: float = 0.0  # midband at entry time — exit target
+        self._cooldown_until: pd.Timestamp | None = None  # blocked after stop-out
 
     @property
     def name(self) -> str:
@@ -59,6 +61,7 @@ class BollingerStrategy(Strategy):
         self._in_position = False
         self._side = 0
         self._entry_mid = 0.0
+        self._cooldown_until = None
 
     def signal(self, df: pd.DataFrame) -> int:
         p = self._params
@@ -77,6 +80,7 @@ class BollingerStrategy(Strategy):
         # Exclude current bar to avoid lookahead
         prev = daily.iloc[:-1]
         current = float(daily.iloc[-1])
+        now = daily.index[-1]
 
         # Bollinger Bands on prev bars
         sma = float(prev.iloc[-bb_n:].mean())
@@ -109,6 +113,10 @@ class BollingerStrategy(Strategy):
                     return 0
                 return -1
 
+        # ── Cooldown after stop-out ────────────────────────────────────────────
+        if self._cooldown_until is not None and now < self._cooldown_until:
+            return 0
+
         # ── New entry — skip in strong trending regimes ───────────────────────
         if trending:
             return 0
@@ -126,6 +134,13 @@ class BollingerStrategy(Strategy):
             return -1
 
         return 0
+
+    def notify_stop(self, timestamp: pd.Timestamp) -> None:
+        """Called by the backtester when a stop-loss is triggered."""
+        self._in_position = False
+        self._side = 0
+        cooldown_days = int(self._params["cooldown_days"])
+        self._cooldown_until = timestamp + pd.Timedelta(days=cooldown_days)
 
     @classmethod
     def from_yaml(cls, text: str) -> "BollingerStrategy":

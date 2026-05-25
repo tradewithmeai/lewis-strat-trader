@@ -1,7 +1,7 @@
 """
 Walk-forward comparison across all strategies.
 
-Two folding modes:
+Three folding modes:
   --folds N (default)     Equal-time folds. Each fold trains on all prior data
                           and tests on the new period — N-1 independent Sharpe
                           readings per strategy.
@@ -9,14 +9,30 @@ Two folding modes:
   --regime-folds          Regime-aware folds. Detects bull / bear / ranging
                           periods via rolling 90-day return on daily bars and
                           places fold boundaries at regime transitions. Each
-                          fold is labelled by its dominant regime, making it
-                          easy to see which strategies survive regime changes.
+                          fold is labelled by its dominant regime.
+
+  --regime-override       Manually specify test windows with explicit regime
+                          labels. Bypasses auto-detection entirely.
+
+Filtering:
+  --only-regimes LABEL    Keep only folds matching the given regime label(s).
+                          Works with both --regime-folds and --regime-override.
+                          Comma-separated for multiple: --only-regimes bull,ranging
 
 Usage:
     uv run python -m local_system.cli.walkforward
     uv run python -m local_system.cli.walkforward --years 5 --folds 5
     uv run python -m local_system.cli.walkforward --regime-folds
-    uv run python -m local_system.cli.walkforward --from 2021-01-01 --to 2026-01-01 --regime-folds
+    uv run python -m local_system.cli.walkforward --regime-folds --only-regimes ranging
+
+    # Manual ranging windows — test bollinger on periods you believe were ranging:
+    uv run python -m local_system.cli.walkforward \\
+        --regime-override 2021-06-01:2021-09-30:ranging 2023-01-01:2023-10-01:ranging \\
+        --only-regimes ranging
+
+    # Tune the auto-detector thresholds (default ±10% / 90 days):
+    uv run python -m local_system.cli.walkforward --regime-folds \\
+        --bull-threshold 0.05 --bear-threshold 0.05 --only-regimes ranging
 """
 
 from __future__ import annotations
@@ -35,8 +51,8 @@ CHALLENGERS_FILE = STATE_DIR / "challengers.yaml"
 
 # Rolling window (daily bars) for regime detection
 _REGIME_WINDOW = 90  # days
-_BULL_THRESHOLD = 0.10  # +10% over 90 days = bull
-_BEAR_THRESHOLD = -0.10  # -10% over 90 days = bear
+_BULL_THRESHOLD_DEFAULT = 0.10  # +10% over 90 days = bull
+_BEAR_THRESHOLD_DEFAULT = 0.10  # 10% drop over 90 days = bear
 
 
 def _load_all_strategies() -> list:
@@ -73,31 +89,59 @@ def _sharpe_cell(s: float, ci_low: float, ci_high: float) -> str:
     return f"{s:+.2f}{marker}"
 
 
-def _detect_regimes(df_daily: pd.Series) -> pd.Series:
+def _detect_regimes(
+    df_daily: pd.Series,
+    bull_threshold: float = _BULL_THRESHOLD_DEFAULT,
+    bear_threshold: float = _BEAR_THRESHOLD_DEFAULT,
+) -> pd.Series:
     """
     Classify each daily bar as 'bull', 'bear', or 'ranging' using a rolling
     90-day return. Returns a Series with the same index.
     """
     roll_ret = df_daily.pct_change(_REGIME_WINDOW)
     regime = pd.Series("ranging", index=df_daily.index)
-    regime[roll_ret > _BULL_THRESHOLD] = "bull"
-    regime[roll_ret < _BEAR_THRESHOLD] = "bear"
+    regime[roll_ret > bull_threshold] = "bull"
+    regime[roll_ret < -bear_threshold] = "bear"
     return regime
 
 
-def _regime_fold_boundaries(df: pd.DataFrame) -> list[tuple[int, int, str]]:
+def _dates_to_fold_boundaries(
+    df: pd.DataFrame,
+    blocks: list[tuple[pd.Timestamp, pd.Timestamp, str]],
+) -> list[tuple[int, int, str]]:
     """
-    Find regime transitions and return fold boundaries as list of
-    (test_start_idx, test_end_idx, dominant_regime_label).
+    Convert (start_date, end_date, label) blocks into integer index tuples
+    (test_start_idx, test_end_idx, label) suitable for run_backtest.
+    Blocks with fewer than 30 daily bars are skipped.
+    """
+    folds: list[tuple[int, int, str]] = []
+    n = len(df)
+    daily = df["close"].resample("1D").last().dropna()
+    for start, end, lbl in blocks:
+        idx_start = df.index.searchsorted(start)
+        idx_end = df.index.searchsorted(end)
+        idx_end = min(idx_end, n)
+        # Count daily bars in this window — strategies need enough history
+        n_daily = daily.index.searchsorted(end) - daily.index.searchsorted(start)
+        if n_daily < 30 or idx_end - idx_start < 30:
+            continue
+        folds.append((idx_start, idx_end, lbl))
+    return folds
 
-    Strategy: detect each contiguous regime block on daily bars, then map
-    back to 1h bar indices. Blocks shorter than 30 days are merged into the
-    adjacent block to avoid degenerate folds.
+
+def _regime_fold_boundaries(
+    df: pd.DataFrame,
+    bull_threshold: float = _BULL_THRESHOLD_DEFAULT,
+    bear_threshold: float = _BEAR_THRESHOLD_DEFAULT,
+) -> list[tuple[int, int, str]]:
+    """
+    Auto-detect regime transitions and return fold boundaries.
+    Blocks shorter than 30 days are merged into the adjacent block.
     """
     daily = df["close"].resample("1D").last().dropna()
-    regime = _detect_regimes(daily)
+    regime = _detect_regimes(daily, bull_threshold, bear_threshold)
 
-    # Build contiguous blocks: [(start_date, end_date, label), ...]
+    # Build contiguous blocks
     blocks: list[tuple[pd.Timestamp, pd.Timestamp, str]] = []
     cur_label = None
     cur_start = None
@@ -110,49 +154,64 @@ def _regime_fold_boundaries(df: pd.DataFrame) -> list[tuple[int, int, str]]:
     if cur_label is not None:
         blocks.append((cur_start, regime.index[-1], cur_label))
 
-    # Merge short blocks (< 30 days) into the previous one
+    # Merge blocks shorter than 30 days into previous
     MIN_DAYS = 30
     merged: list[tuple[pd.Timestamp, pd.Timestamp, str]] = []
     for start, end, lbl in blocks:
-        days = (end - start).days
-        if days < MIN_DAYS and merged:
+        if (end - start).days < MIN_DAYS and merged:
             prev_start, _, prev_lbl = merged[-1]
             merged[-1] = (prev_start, end, prev_lbl)
         else:
             merged.append((start, end, lbl))
 
-    # Map date boundaries back to 1h bar integer indices
-    folds: list[tuple[int, int, str]] = []
-    n = len(df)
-    for i, (start, end, lbl) in enumerate(merged):
-        # Find first 1h bar >= start and last 1h bar < end
-        idx_start = df.index.searchsorted(start)
-        idx_end = df.index.searchsorted(end)
-        idx_end = min(idx_end, n)
-        if idx_end - idx_start < 200:
-            continue
-        folds.append((idx_start, idx_end, lbl))
-
-    return folds
+    return _dates_to_fold_boundaries(df, merged)
 
 
-def _run_regime_folds(df: pd.DataFrame, strat, symbol: str) -> list:
+def _parse_regime_overrides(df: pd.DataFrame, specs: list[str]) -> list[tuple[int, int, str]]:
     """
-    Run backtests for each regime fold. Train = all prior bars, test = fold.
-    Returns BacktestResult list with an extra .regime attribute injected.
+    Parse --regime-override entries of the form 'YYYY-MM-DD:YYYY-MM-DD:label'
+    and convert to integer index tuples.
+    """
+    blocks: list[tuple[pd.Timestamp, pd.Timestamp, str]] = []
+    for spec in specs:
+        parts = spec.strip().split(":")
+        if len(parts) != 3:
+            print(
+                f"  [warn] Ignoring malformed --regime-override '{spec}' (expected FROM:TO:LABEL)"
+            )
+            continue
+        try:
+            start = pd.Timestamp(parts[0], tz="UTC")
+            end = pd.Timestamp(parts[1], tz="UTC")
+        except ValueError:
+            print(f"  [warn] Ignoring --regime-override '{spec}': bad date format")
+            continue
+        blocks.append((start, end, parts[2]))
+
+    # Sort by start date so training windows accumulate correctly
+    blocks.sort(key=lambda b: b[0])
+    return _dates_to_fold_boundaries(df, blocks)
+
+
+def _run_folds(
+    df: pd.DataFrame,
+    strat,
+    symbol: str,
+    folds: list[tuple[int, int, str]],
+) -> list:
+    """
+    Run backtests for explicit (test_start_idx, test_end_idx, label) folds.
+    Train = all bars before test window. Returns BacktestResult list with
+    .regime attribute injected.
     """
     from local_system.backtester import run_backtest
-
-    folds = _regime_fold_boundaries(df)
-    if not folds:
-        return []
 
     results = []
     for test_start, test_end, regime_label in folds:
         df_fold = df.iloc[:test_end]
-        if len(df_fold) < 200:
+        if len(df_fold) < 30:
             continue
-        train_frac = test_start / len(df_fold)
+        train_frac = test_start / len(df_fold) if test_start > 0 else 0.0
         result = run_backtest(df_fold, strat, symbol=symbol, train_frac=train_frac)
         result.regime = regime_label  # type: ignore[attr-defined]
         results.append(result)
@@ -176,6 +235,41 @@ def main() -> None:
         action="store_true",
         help="Use regime-aware fold boundaries instead of equal-time folds",
     )
+    parser.add_argument(
+        "--regime-override",
+        nargs="+",
+        metavar="FROM:TO:LABEL",
+        default=None,
+        help=(
+            "Manual regime folds. Each entry: YYYY-MM-DD:YYYY-MM-DD:label. "
+            "Bypasses auto-detection. Example: "
+            "--regime-override 2023-01-01:2023-10-01:ranging 2021-06-01:2021-09-30:ranging"
+        ),
+    )
+    parser.add_argument(
+        "--only-regimes",
+        default=None,
+        metavar="LABEL[,LABEL]",
+        help=(
+            "Keep only folds whose regime label matches. "
+            "Comma-separated for multiple. Example: --only-regimes ranging  "
+            "or --only-regimes bull,ranging"
+        ),
+    )
+    parser.add_argument(
+        "--bull-threshold",
+        type=float,
+        default=_BULL_THRESHOLD_DEFAULT,
+        metavar="FRAC",
+        help=f"Rolling 90-day return above which = bull (default {_BULL_THRESHOLD_DEFAULT})",
+    )
+    parser.add_argument(
+        "--bear-threshold",
+        type=float,
+        default=_BEAR_THRESHOLD_DEFAULT,
+        metavar="FRAC",
+        help=f"Rolling 90-day return below which (abs) = bear (default {_BEAR_THRESHOLD_DEFAULT})",
+    )
     args = parser.parse_args()
 
     end = date.fromisoformat(args.to_date) if args.to_date else date.today() - timedelta(days=1)
@@ -185,7 +279,20 @@ def main() -> None:
         else end - timedelta(days=int(args.years * 365))
     )
 
-    mode = "regime-aware" if args.regime_folds else f"{args.folds} equal-time folds"
+    use_regime_mode = args.regime_folds or args.regime_override is not None
+    if args.regime_override:
+        mode = f"manual regime override ({len(args.regime_override)} windows)"
+    elif args.regime_folds:
+        mode = f"regime-aware (bull>{args.bull_threshold:.0%} bear>{args.bear_threshold:.0%})"
+    else:
+        mode = f"{args.folds} equal-time folds"
+
+    if args.only_regimes:
+        allowed = {r.strip() for r in args.only_regimes.split(",")}
+        mode += f"  [filter: {', '.join(sorted(allowed))}]"
+    else:
+        allowed = None
+
     print(f"\nWalk-forward: {start} -> {end}  ({mode})")
     print("Loading bars...", flush=True)
 
@@ -194,9 +301,6 @@ def main() -> None:
 
     df_1m = load_bars(args.symbol, start, end, backfill_only=True)
     if df_1m.empty:
-        # Yahoo Finance 1h data is limited to the last 730 days; use daily bars
-        # for longer windows. All strategies resample to daily internally so this
-        # is equivalent — daily close is the decision point for every signal.
         print("Lake has no historical data — falling back to Yahoo Finance (daily bars).")
         df = load_bars_yf(args.symbol, start, end, interval="1d")
         if df.empty:
@@ -207,15 +311,31 @@ def main() -> None:
         df = resample_ohlcv(df_1m, "1h")
         print(f"Loaded {len(df_1m):,} 1m bars -> {len(df):,} 1h bars\n")
 
+    # Pre-compute folds once — same for all strategies
+    if args.regime_override:
+        regime_folds = _parse_regime_overrides(df, args.regime_override)
+    elif args.regime_folds:
+        regime_folds = _regime_fold_boundaries(df, args.bull_threshold, args.bear_threshold)
+    else:
+        regime_folds = None
+
+    # Apply regime filter
+    if regime_folds is not None and allowed is not None:
+        regime_folds = [(s, e, lbl) for s, e, lbl in regime_folds if lbl in allowed]
+        if not regime_folds:
+            print(f"No folds matched --only-regimes filter '{args.only_regimes}'.")
+            print("Try --regime-override to manually specify date windows.")
+            return
+
     strategies = _load_all_strategies()
 
-    # Run walk-forward for every strategy, collect fold results
+    # Run walk-forward for every strategy
     all_results: dict[str, list] = {}
     for strat in strategies:
         print(f"  Running {strat.name}...", flush=True)
         try:
-            if args.regime_folds:
-                folds = _run_regime_folds(df, strat, symbol=args.symbol)
+            if regime_folds is not None:
+                folds = _run_folds(df, strat, symbol=args.symbol, folds=regime_folds)
             else:
                 folds = run_walk_forward(df, strat, symbol=args.symbol, n_splits=args.folds)
             all_results[strat.name] = folds
@@ -227,17 +347,19 @@ def main() -> None:
         print("No results.")
         return
 
-    # Collect fold labels from the first strategy that has results
-    fold_label_fn = _regime_fold_label if args.regime_folds else _fold_label
+    fold_label_fn = _regime_fold_label if use_regime_mode else _fold_label
     fold_labels = []
     for folds in all_results.values():
         if folds:
             fold_labels = [fold_label_fn(r) for r in folds]
             break
 
-    n_folds = len(fold_labels)
+    if not fold_labels:
+        print("No folds produced results.")
+        return
 
-    col_w = 26 if args.regime_folds else 18
+    n_folds = len(fold_labels)
+    col_w = 26 if use_regime_mode else 18
     name_w = 20
 
     # ── Print Sharpe table ────────────────────────────────────────────────────
@@ -262,8 +384,7 @@ def main() -> None:
             cells.append(_sharpe_cell(r.sharpe, r.sharpe_ci_low, r.sharpe_ci_high))
             sharpes.append(r.sharpe)
         avg = sum(sharpes) / len(sharpes)
-        avg_str = f"{avg:+.2f}"
-        row = f"{name:<{name_w}}" + "".join(f"{c:>{col_w}}" for c in cells) + f"{avg_str:>{12}}"
+        row = f"{name:<{name_w}}" + "".join(f"{c:>{col_w}}" for c in cells) + f"{avg:>+12.2f}"
         print(row)
 
     print()
@@ -298,7 +419,7 @@ def main() -> None:
             continue
         print(f"\n{name}")
         for r in folds:
-            regime_tag = f"  regime={getattr(r, 'regime', '?')}" if args.regime_folds else ""
+            regime_tag = f"  regime={getattr(r, 'regime', '?')}" if use_regime_mode else ""
             print(
                 f"  {fold_label_fn(r)}{regime_tag}  "
                 f"Sharpe {r.sharpe:+.2f} [{r.sharpe_ci_low:+.2f},{r.sharpe_ci_high:+.2f}]  "

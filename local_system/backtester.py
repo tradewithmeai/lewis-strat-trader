@@ -163,11 +163,13 @@ def run_backtest(
 
     full_df = pd.concat([df_train, df_test])
 
-    def _sync_strategy_flat() -> None:
+    def _sync_strategy_flat(ts: pd.Timestamp | None = None) -> None:
         """Tell the strategy it's been force-exited (stop loss)."""
         strategy._in_position = False
         if hasattr(strategy, "_side"):
             strategy._side = 0
+        if ts is not None and hasattr(strategy, "notify_stop"):
+            strategy.notify_stop(ts)
 
     for i in range(len(df_test)):
         price = closes[i]
@@ -186,7 +188,7 @@ def run_backtest(
                         Trade(entry_time, times[i], entry_price, exit_price, net_ret, "long")
                     )
                     position = 0
-                    _sync_strategy_flat()
+                    _sync_strategy_flat(times[i])
                     continue
             elif position == -1:
                 stop_price = entry_price * (1 + stop_loss_frac)
@@ -198,7 +200,7 @@ def run_backtest(
                         Trade(entry_time, times[i], entry_price, exit_price, net_ret, "short")
                     )
                     position = 0
-                    _sync_strategy_flat()
+                    _sync_strategy_flat(times[i])
                     continue
 
         lookback_df = full_df.iloc[: split + i + 1]
