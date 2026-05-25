@@ -188,14 +188,19 @@ def main() -> None:
     print(f"\nOptimising: {args.strategy}  |  {start} -> {end}  |  {args.workers} workers")
     print("Loading bars...", flush=True)
 
-    from local_system.lake_adapter import load_bars, resample_ohlcv
+    from local_system.lake_adapter import load_bars, load_bars_yf, resample_ohlcv
 
     df_1m = load_bars(args.symbol, start, end, backfill_only=True)
     if df_1m.empty:
-        print("ERROR: No data in lake for that date range.")
-        return
-    df = resample_ohlcv(df_1m, "1h")
-    print(f"Loaded {len(df):,} 1h bars  ({start} to {end})\n")
+        print("Lake empty — falling back to Yahoo Finance daily bars.", flush=True)
+        df = load_bars_yf(args.symbol, start, end, interval="1d")
+        if df.empty:
+            print("ERROR: No data from Yahoo Finance either.")
+            return
+        print(f"Loaded {len(df):,} daily bars  ({start} to {end})\n")
+    else:
+        df = resample_ohlcv(df_1m, "1h")
+        print(f"Loaded {len(df_1m):,} 1m bars -> {len(df):,} 1h bars  ({start} to {end})\n")
 
     grid = get_grid(args.strategy)
     param_combos = _expand_grid(grid)

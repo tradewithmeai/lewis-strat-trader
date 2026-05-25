@@ -32,10 +32,10 @@ from local_system.strategies.base import Strategy
 
 _DEFAULTS = {
     "bb_period": 20,  # SMA and sigma window (days)
-    "bb_std": 2.0,  # standard deviations for band width
-    "slope_ema_period": 50,  # EMA period for slope calculation
-    "slope_lookback": 10,  # days over which to measure EMA slope
-    "slope_threshold": 0.003,  # |daily slope fraction| above which = trending
+    "bb_std": 1.5,  # 1.5 std catches more touches than classic 2.0; optimised on 5y BTC
+    "slope_ema_period": 100,  # slower EMA gives more stable trend signal
+    "slope_lookback": 5,  # days over which to measure EMA slope
+    "slope_threshold": 0.005,  # |daily slope fraction| above which = trending; 0.5%/day is strong
     "stop_loss_pct": 6.0,
 }
 
