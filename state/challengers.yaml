@@ -10,3 +10,6 @@ challengers:
   - mtf_confluence
   - ema_crossover
   - rsi_meanrev
+  - mtf_bb_vol
+  - regime_bb
+  - ensemble

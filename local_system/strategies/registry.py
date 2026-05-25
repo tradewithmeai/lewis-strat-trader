@@ -116,6 +116,27 @@ REGISTRY: dict[str, dict] = {
             "cooldown_days": [7, 14],
         },
     },
+    "regime_bb": {
+        "cls": "local_system.strategies.regime_bb.RegimeBbStrategy",
+        "grid": {
+            "bb_period": [10, 15, 20],
+            "bb_std": [2.0, 2.5],
+            "adx_period": [10, 14],
+            "adx_threshold": [20.0, 25.0, 30.0],
+            "rvol_threshold": [1.0, 1.5],
+            "slope_threshold": [0.003, 0.005],
+            "stop_loss_pct": [3.0, 5.0, 8.0],
+            "cooldown_days": [3, 7],
+        },
+    },
+    "ensemble": {
+        "cls": "local_system.strategies.ensemble.EnsembleStrategy",
+        "grid": {
+            "vote_threshold": [4, 5, 6],
+            "exit_threshold": [2, 3],
+            "stop_loss_pct": [3.0, 5.0, 8.0],
+        },
+    },
 }
 
 
