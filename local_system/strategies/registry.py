@@ -104,6 +104,18 @@ REGISTRY: dict[str, dict] = {
             "cooldown_days": [7, 14, 21],
         },
     },
+    "mtf_bb_vol": {
+        "cls": "local_system.strategies.mtf_bb_vol.MtfBbVolStrategy",
+        "grid": {
+            "bb_period": [10, 15, 20],
+            "bb_std": [1.5, 2.0, 2.5],
+            "rvol_period": [10, 20],
+            "rvol_threshold": [1.2, 1.5, 2.0],
+            "slope_threshold": [0.003, 0.005, 0.008],
+            "stop_loss_pct": [4.0, 6.0, 8.0],
+            "cooldown_days": [7, 14],
+        },
+    },
 }
 
 
