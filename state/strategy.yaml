@@ -3,13 +3,8 @@
 # reflection cycle. Do NOT change the strategy name here — use state/comparison.json
 # to monitor challengers and switch manually when a GREEN challenger appears.
 
-strategy: markov_regime
+strategy: breakout
 params:
-  regime_signal_min: 0.05
-  rsi_period: 14
-  rsi_entry: 40
-  rsi_exit: 60
-  stop_loss_pct: 3.0
-  regime_window: 20
-  regime_threshold: 0.02
-  daily_resample: true
+  entry_period: 40
+  exit_period: 20
+  stop_loss_pct: 8.0

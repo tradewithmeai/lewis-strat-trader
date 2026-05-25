@@ -92,6 +92,17 @@ REGISTRY: dict[str, dict] = {
             "stop_loss_pct": [3.0, 5.0, 8.0],
         },
     },
+    "bollinger": {
+        "cls": "local_system.strategies.bollinger.BollingerStrategy",
+        "grid": {
+            "bb_period": [15, 20, 30],
+            "bb_std": [1.5, 2.0, 2.5],
+            "slope_ema_period": [50, 100],
+            "slope_lookback": [5, 10, 20],
+            "slope_threshold": [0.002, 0.003, 0.005],
+            "stop_loss_pct": [4.0, 6.0, 8.0],
+        },
+    },
 }
 
 

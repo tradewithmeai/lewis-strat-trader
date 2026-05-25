@@ -4,6 +4,7 @@
 
 challengers:
   - breakout
+  - bollinger
   - daily_swing
   - mtf_ls
   - mtf_confluence
