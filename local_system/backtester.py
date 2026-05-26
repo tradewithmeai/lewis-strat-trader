@@ -122,6 +122,7 @@ def run_backtest(
     strategy,
     symbol: str = "BTCUSDT",
     train_frac: float = 0.8,
+    direction: str = "both",
 ) -> BacktestResult:
     """
     Run a walk-forward backtest on df (1m OHLCV bars).
@@ -133,6 +134,11 @@ def run_backtest(
 
     train_frac: fraction of data used for parameter fitting (no trades executed).
     The remaining (1 - train_frac) fraction is the test window where trades happen.
+
+    direction: "both" (default), "long" (suppress all short entries), or
+               "short" (suppress all long entries). Used by regime-aware walk-forward
+               to apply directional bias per fold — bull folds long-only, bear folds
+               short-only, ranging folds unconstrained.
     """
     if df.empty or len(df) < 100:
         raise ValueError(f"Insufficient data: {len(df)} bars")
@@ -205,6 +211,12 @@ def run_backtest(
 
         lookback_df = full_df.iloc[: split + i + 1]
         sig = strategy.signal(lookback_df)
+
+        # ── Directional bias (regime-aware fold constraint) ───────────────────
+        if direction == "long" and sig == -1:
+            sig = 0
+        elif direction == "short" and sig == 1:
+            sig = 0
 
         # ── Enter ─────────────────────────────────────────────────────────────
         if position == 0:

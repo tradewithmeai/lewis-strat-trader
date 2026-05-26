@@ -198,11 +198,16 @@ def _run_folds(
     strat,
     symbol: str,
     folds: list[tuple[int, int, str]],
+    directional: bool = False,
 ) -> list:
     """
     Run backtests for explicit (test_start_idx, test_end_idx, label) folds.
     Train = all bars before test window. Returns BacktestResult list with
     .regime attribute injected.
+
+    If directional=True, bull folds run long-only, bear folds run short-only,
+    and ranging folds are unconstrained. This prevents shorting during bull
+    periods and going long during bear periods.
     """
     from local_system.backtester import run_backtest
 
@@ -212,7 +217,13 @@ def _run_folds(
         if len(df_fold) < 30:
             continue
         train_frac = test_start / len(df_fold) if test_start > 0 else 0.0
-        result = run_backtest(df_fold, strat, symbol=symbol, train_frac=train_frac)
+        if directional:
+            direction = {"bull": "long", "bear": "short"}.get(regime_label, "both")
+        else:
+            direction = "both"
+        result = run_backtest(
+            df_fold, strat, symbol=symbol, train_frac=train_frac, direction=direction
+        )
         result.regime = regime_label  # type: ignore[attr-defined]
         results.append(result)
     return results
@@ -270,7 +281,18 @@ def main() -> None:
         metavar="FRAC",
         help=f"Rolling 90-day return below which (abs) = bear (default {_BEAR_THRESHOLD_DEFAULT})",
     )
+    parser.add_argument(
+        "--directional",
+        action="store_true",
+        help=(
+            "Apply directional bias per regime fold: bull=long-only, bear=short-only, "
+            "ranging=both. Requires --regime-folds or --regime-override."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.directional and not (args.regime_folds or args.regime_override):
+        parser.error("--directional requires --regime-folds or --regime-override")
 
     end = date.fromisoformat(args.to_date) if args.to_date else date.today() - timedelta(days=1)
     start = (
@@ -286,6 +308,9 @@ def main() -> None:
         mode = f"regime-aware (bull>{args.bull_threshold:.0%} bear>{args.bear_threshold:.0%})"
     else:
         mode = f"{args.folds} equal-time folds"
+
+    if args.directional:
+        mode += "  [directional: bull=long-only, bear=short-only]"
 
     if args.only_regimes:
         allowed = {r.strip() for r in args.only_regimes.split(",")}
@@ -335,7 +360,13 @@ def main() -> None:
         print(f"  Running {strat.name}...", flush=True)
         try:
             if regime_folds is not None:
-                folds = _run_folds(df, strat, symbol=args.symbol, folds=regime_folds)
+                folds = _run_folds(
+                    df,
+                    strat,
+                    symbol=args.symbol,
+                    folds=regime_folds,
+                    directional=args.directional,
+                )
             else:
                 folds = run_walk_forward(df, strat, symbol=args.symbol, n_splits=args.folds)
             all_results[strat.name] = folds
