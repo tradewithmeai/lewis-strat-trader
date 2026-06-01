@@ -1,15 +1,30 @@
 """
 paper_trader.py — local paper trading loop.
 
-Runs independently of the terminal. Reads live 1m bars from the crypto-lake-rs
-parquet store, generates signals from all configured strategies, tracks paper
-positions, and writes state/status.json every tick.
+Runs independently of the terminal. Reads recent 1m bars from the crypto-lake-rs
+parquet store, resamples to 1h (matching the backtest/reflect convention),
+generates signals from the configured active strategy + all challengers, tracks
+paper positions (long AND short, with stop-loss), and writes state/status.json
+every tick.
+
+Configuration is read from state/ at startup:
+    state/strategy.yaml     active strategy NAME + params (+ optional directional flag)
+    state/challengers.yaml  list of challenger strategy names
+
+Both are resolved through local_system.strategies.registry, so whatever you set
+as the active strategy is what actually runs — no hardcoding.
+
+Directional regime gate (optional, strategy.yaml `directional: true`):
+    Each tick, the trailing 90-day return classifies the market as bull / bear /
+    ranging (the same causal rule the walk-forward uses). When enabled, bull
+    suppresses short signals and bear suppresses long signals — the live mirror
+    of the per-fold directional bias. Default off (no behaviour change).
 
 Run:
     uv run python -m local_system.paper_trader
 
-The process is designed to run in the background. The terminal is just a window
-into it via the /status skill — you can close and reopen the terminal freely.
+Designed to run in the background. The terminal is just a window into it via the
+/status skill — close and reopen freely.
 """
 
 from __future__ import annotations
@@ -17,9 +32,10 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
 ROOT = Path(__file__).parent.parent
@@ -27,63 +43,105 @@ STATE_DIR = ROOT / "state"
 STATUS_FILE = STATE_DIR / "status.json"
 PAPER_TRADES_FILE = STATE_DIR / "paper_trades.jsonl"
 STRATEGY_FILE = STATE_DIR / "strategy.yaml"
+CHALLENGERS_FILE = STATE_DIR / "challengers.yaml"
 
-TICK_SEC = 60  # re-evaluate every 60 seconds
-LOOKBACK_DAYS = 7  # bars for signal calculation
+TICK_SEC = 300  # hourly strategies — re-evaluate every 5 minutes
+HISTORY_DAYS = 150  # trailing window: enough for 90d regime gate + strategy lookbacks
+ROUND_TRIP_COST = 0.0024  # 0.1% taker x2 + 2bps slippage x2 (matches backtester)
+
+# Regime detection (matches local_system.cli.walkforward)
+_REGIME_WINDOW = 90  # days
+_BULL_THRESHOLD = 0.10
+_BEAR_THRESHOLD = 0.10
 
 
-def _load_strategies():
-    """Load active + challenger strategies based on state/strategy.yaml."""
-    from local_system.strategies.markov import MarkovStrategy
-    from local_system.strategies.rsi_meanrev import RsiMeanRevStrategy
+# ── Config loading ────────────────────────────────────────────────────────────
 
-    # Active strategy always comes from state/strategy.yaml
-    active_params = {}
+
+def _load_config() -> tuple[str, dict, bool, list[str]]:
+    """Return (active_name, active_params, directional, challenger_names)."""
+    active_name = "markov_regime"
+    active_params: dict = {}
+    directional = False
     if STRATEGY_FILE.exists():
-        spec = yaml.safe_load(STRATEGY_FILE.read_text())
-        active_params = spec.get("params", {})
+        spec = yaml.safe_load(STRATEGY_FILE.read_text()) or {}
+        active_name = spec.get("strategy", active_name)
+        active_params = spec.get("params", {}) or {}
+        directional = bool(spec.get("directional", False))
 
-    active = MarkovStrategy(params=active_params)
+    challenger_names: list[str] = []
+    if CHALLENGERS_FILE.exists():
+        cspec = yaml.safe_load(CHALLENGERS_FILE.read_text()) or {}
+        challenger_names = cspec.get("challengers", []) or []
 
-    # Challengers are hardcoded for now; add more here as needed
-    challengers = [RsiMeanRevStrategy()]
+    # Don't run the active strategy twice if it also appears in challengers
+    challenger_names = [n for n in challenger_names if n != active_name]
+    return active_name, active_params, directional, challenger_names
 
+
+def _make_strategies(active_name: str, active_params: dict, challenger_names: list[str]):
+    """Instantiate active + challengers via the registry."""
+    from local_system.strategies.registry import get_strategy
+
+    active = get_strategy(active_name, active_params)
+    challengers = []
+    for name in challenger_names:
+        try:
+            challengers.append(get_strategy(name))
+        except (ValueError, ImportError) as exc:
+            print(f"[paper_trader] skipping challenger '{name}': {exc}", flush=True)
     return active, challengers
+
+
+# ── Regime gate (causal) ────────────────────────────────────────────────────
+
+
+def _classify_regime(df_1h: pd.DataFrame) -> str:
+    """Classify the current market via trailing 90-day return on daily closes.
+
+    Backward-looking only (uses bars up to now), so it is safe to use live.
+    """
+    daily = df_1h["close"].resample("1D").last().dropna()
+    if len(daily) < _REGIME_WINDOW + 1:
+        return "ranging"
+    roll_ret = daily.iloc[-1] / daily.iloc[-(_REGIME_WINDOW + 1)] - 1.0
+    if roll_ret > _BULL_THRESHOLD:
+        return "bull"
+    if roll_ret < -_BEAR_THRESHOLD:
+        return "bear"
+    return "ranging"
+
+
+def _apply_directional(sig: int, regime: str) -> int:
+    """Suppress shorts in bull, longs in bear. Ranging unconstrained."""
+    if regime == "bull" and sig == -1:
+        return 0
+    if regime == "bear" and sig == 1:
+        return 0
+    return sig
+
+
+# ── Status / trade IO ──────────────────────────────────────────────────────
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _write_status(
-    active_name: str,
-    active_position: dict,
-    challenger_positions: list[dict],
-    last_price: float,
-    last_bar_ts: str,
-    tick: int,
-) -> None:
+def _write_status(payload: dict) -> None:
     STATE_DIR.mkdir(exist_ok=True)
-    payload = {
-        "ts": _now_iso(),
-        "tick": tick,
-        "last_price": last_price,
-        "last_bar_ts": last_bar_ts,
-        "active": {
-            "strategy": active_name,
-            "position": active_position,
-        },
-        "challengers": challenger_positions,
-    }
     STATUS_FILE.write_text(json.dumps(payload, indent=2))
 
 
-def _write_trade(strategy_name: str, action: str, price: float, pnl_pct: float | None) -> None:
+def _write_trade(
+    strategy_name: str, action: str, side: str, price: float, pnl_pct: float | None
+) -> None:
     STATE_DIR.mkdir(exist_ok=True)
     record = {
         "ts": _now_iso(),
         "strategy": strategy_name,
         "action": action,
+        "side": side,
         "price": price,
         "pnl_pct": pnl_pct,
     }
@@ -91,118 +149,211 @@ def _write_trade(strategy_name: str, action: str, price: float, pnl_pct: float |
         f.write(json.dumps(record) + "\n")
 
 
-class PaperPosition:
-    """Tracks a single paper trade position for one strategy."""
+# ── Position tracking (long + short + stop-loss) ─────────────────────────────
 
-    def __init__(self, strategy_name: str):
+
+class PaperPosition:
+    """Tracks a single paper position for one strategy. Supports long and short."""
+
+    def __init__(self, strategy_name: str, stop_loss_pct: float = 0.0):
         self.name = strategy_name
-        self.in_position = False
+        self.side = 0  # 0 flat, +1 long, -1 short
         self.entry_price = 0.0
         self.entry_ts = ""
         self.pnl_pct = 0.0
         self.total_pnl_pct = 0.0
         self.trade_count = 0
+        self.win_count = 0
+        self.stop_loss_frac = (stop_loss_pct / 100.0) if stop_loss_pct else 0.0
 
-    def enter(self, price: float) -> None:
-        self.in_position = True
+    @property
+    def in_position(self) -> bool:
+        return self.side != 0
+
+    def enter(self, price: float, side: int) -> None:
+        self.side = side
         self.entry_price = price
         self.entry_ts = _now_iso()
         self.pnl_pct = 0.0
-        _write_trade(self.name, "BUY", price, None)
+        _write_trade(self.name, "ENTER", "long" if side == 1 else "short", price, None)
 
-    def exit(self, price: float) -> None:
-        gross = (price - self.entry_price) / self.entry_price
-        net = gross - 0.0024  # round-trip cost
+    def exit(self, price: float, reason: str) -> float:
+        gross = self.side * (price - self.entry_price) / self.entry_price
+        net = gross - ROUND_TRIP_COST
+        side_str = "long" if self.side == 1 else "short"
         self.pnl_pct = net
         self.total_pnl_pct += net
         self.trade_count += 1
-        self.in_position = False
-        _write_trade(self.name, "SELL", price, net)
+        if net > 0:
+            self.win_count += 1
+        _write_trade(self.name, f"EXIT_{reason}", side_str, price, net)
+        self.side = 0
+        return net
+
+    def stop_hit(self, price: float) -> bool:
+        if not self.in_position or not self.stop_loss_frac:
+            return False
+        if self.side == 1:
+            return price <= self.entry_price * (1 - self.stop_loss_frac)
+        return price >= self.entry_price * (1 + self.stop_loss_frac)
 
     def update_unrealised(self, price: float) -> None:
         if self.in_position and self.entry_price > 0:
-            gross = (price - self.entry_price) / self.entry_price
-            self.pnl_pct = gross - 0.0012  # half round-trip (entry cost only)
+            gross = self.side * (price - self.entry_price) / self.entry_price
+            self.pnl_pct = gross - ROUND_TRIP_COST / 2  # entry cost only, while open
 
     def to_dict(self) -> dict:
+        wr = (self.win_count / self.trade_count) if self.trade_count else 0.0
         return {
+            "side": {1: "long", -1: "short", 0: "flat"}[self.side],
             "in_position": self.in_position,
-            "entry_price": self.entry_price,
+            "entry_price": round(self.entry_price, 2),
             "entry_ts": self.entry_ts,
             "unrealised_pnl_pct": round(self.pnl_pct * 100, 3),
             "total_pnl_pct": round(self.total_pnl_pct * 100, 3),
             "trade_count": self.trade_count,
+            "win_rate": round(wr, 3),
         }
 
 
+def _sync_strategy_flat(strategy, ts: pd.Timestamp) -> None:
+    """Tell a stateful strategy it has been force-exited (stop-loss)."""
+    if hasattr(strategy, "_in_position"):
+        strategy._in_position = False
+    if hasattr(strategy, "_side"):
+        strategy._side = 0
+    if hasattr(strategy, "notify_stop"):
+        try:
+            strategy.notify_stop(ts)
+        except Exception:
+            pass
+
+
+def _step_strategy(
+    strategy,
+    pos: PaperPosition,
+    df_1h: pd.DataFrame,
+    price: float,
+    directional: bool,
+    regime: str,
+    now_ts: pd.Timestamp,
+) -> None:
+    """Advance one strategy by one tick, mirroring backtester execution order.
+
+    Stop-loss is checked first (and short-circuits the signal call, so a stateful
+    strategy's signal() is invoked at most once per tick — matching the backtester
+    which `continue`s after a stop).
+    """
+    # 1. Stop-loss (price-based, using the latest close)
+    if pos.stop_hit(price):
+        pos.exit(price, "stop")
+        _sync_strategy_flat(strategy, now_ts)
+        return
+
+    # 2. Signal (called exactly once)
+    sig = strategy.signal(df_1h)
+    if directional:
+        sig = _apply_directional(sig, regime)
+
+    if not pos.in_position:
+        if sig == 1:
+            pos.enter(price, 1)
+        elif sig == -1:
+            pos.enter(price, -1)
+    else:
+        # Exit when the signal no longer agrees with the open side
+        if sig != pos.side:
+            pos.exit(price, "signal")
+
+
+# ── Main loop ────────────────────────────────────────────────────────────────
+
+
+def _load_history():
+    """Load a trailing HISTORY_DAYS window of 1m bars resampled to 1h."""
+    from local_system.lake_adapter import load_bars, resample_ohlcv
+
+    end = date.today()
+    start = end - timedelta(days=HISTORY_DAYS)
+    # backfill_only=False so the live (most recent) days are included.
+    df_1m = load_bars("BTCUSDT", start, end, backfill_only=False)
+    if df_1m.empty:
+        return pd.DataFrame()
+    return resample_ohlcv(df_1m, "1h")
+
+
 async def run_loop() -> None:
-    from local_system.lake_adapter import load_recent_bars
+    active_name, active_params, directional, challenger_names = _load_config()
+    active, challengers = _make_strategies(active_name, active_params, challenger_names)
 
-    active_strategy, challengers = _load_strategies()
-
-    # Fit all strategies on recent history before starting the live loop
-    print(f"[paper_trader] Loading {LOOKBACK_DAYS}d of bars for initial fit...", flush=True)
-    df_init = load_recent_bars("BTCUSDT", n_days=LOOKBACK_DAYS * 5)
+    print(f"[paper_trader] Loading {HISTORY_DAYS}d of bars for initial fit...", flush=True)
+    df_init = _load_history()
     if df_init.empty:
         print("[paper_trader] ERROR: No data in lake. Is crypto-lake-rs running?", flush=True)
         sys.exit(1)
 
     split = int(len(df_init) * 0.8)
-    active_strategy.fit(df_init.iloc[:split])
+    active.fit(df_init.iloc[:split])
     for c in challengers:
         c.fit(df_init.iloc[:split])
 
-    active_pos = PaperPosition(active_strategy.name)
-    challenger_positions = {c.name: PaperPosition(c.name) for c in challengers}
+    def _sl(strat) -> float:
+        return float(strat.params.get("stop_loss_pct", 0) or 0)
+
+    active_pos = PaperPosition(active.name, _sl(active))
+    challenger_pos = {c.name: PaperPosition(c.name, _sl(c)) for c in challengers}
 
     tick = 0
-    print(f"[paper_trader] Live loop started. Active: {active_strategy.name}", flush=True)
+    dir_tag = "ON" if directional else "off"
+    print(
+        f"[paper_trader] Live loop started. Active: {active.name} | "
+        f"challengers: {[c.name for c in challengers]} | directional: {dir_tag}",
+        flush=True,
+    )
 
     while True:
         tick += 1
         try:
-            df = load_recent_bars("BTCUSDT", n_days=LOOKBACK_DAYS)
+            df = _load_history()
             if df.empty:
                 print(f"[paper_trader] tick {tick:04d} — no data, skipping", flush=True)
                 await asyncio.sleep(TICK_SEC)
                 continue
 
             price = float(df["close"].iloc[-1])
-            last_bar_ts = str(df.index[-1])
+            now_ts = df.index[-1]
+            last_bar_ts = str(now_ts)
+            regime = _classify_regime(df)
 
-            # ── Active strategy ───────────────────────────────────────────────
-            sig = active_strategy.signal(df)
-            if not active_pos.in_position and sig == 1:
-                active_pos.enter(price)
-            elif active_pos.in_position and sig != 1:
-                active_pos.exit(price)
+            # Active
+            _step_strategy(active, active_pos, df, price, directional, regime, now_ts)
             active_pos.update_unrealised(price)
 
-            # ── Challengers ───────────────────────────────────────────────────
+            # Challengers
             challenger_states = []
             for c in challengers:
-                pos = challenger_positions[c.name]
-                csig = c.signal(df)
-                if not pos.in_position and csig == 1:
-                    pos.enter(price)
-                elif pos.in_position and csig != 1:
-                    pos.exit(price)
+                pos = challenger_pos[c.name]
+                _step_strategy(c, pos, df, price, directional, regime, now_ts)
                 pos.update_unrealised(price)
                 challenger_states.append({"strategy": c.name, "position": pos.to_dict()})
 
             _write_status(
-                active_strategy.name,
-                active_pos.to_dict(),
-                challenger_states,
-                price,
-                last_bar_ts,
-                tick,
+                {
+                    "ts": _now_iso(),
+                    "tick": tick,
+                    "last_price": price,
+                    "last_bar_ts": last_bar_ts,
+                    "regime": regime,
+                    "directional": directional,
+                    "active": {"strategy": active.name, "position": active_pos.to_dict()},
+                    "challengers": challenger_states,
+                }
             )
 
             print(
-                f"[paper_trader] tick {tick:04d} | price={price:,.2f} | "
-                f"active={'LONG' if active_pos.in_position else 'FLAT'} "
-                f"pnl={active_pos.pnl_pct * 100:+.2f}%",
+                f"[paper_trader] tick {tick:04d} | price={price:,.2f} | regime={regime} | "
+                f"active={active_pos.to_dict()['side']} "
+                f"pnl={active_pos.pnl_pct * 100:+.2f}% total={active_pos.total_pnl_pct * 100:+.2f}%",
                 flush=True,
             )
 

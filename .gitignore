@@ -12,9 +12,13 @@ state/comparison.json
 state/alerts.jsonl
 state/status.json
 state/trades.jsonl
+state/paper_trades.jsonl
 state/heartbeat.json
 state/hypotheses.jsonl
 state/history/
+
+# Throwaway validation scripts generated during research
+_val_*.py
 
 # Parquet lake — lives in crypto-lake-rs, not here
 *.parquet

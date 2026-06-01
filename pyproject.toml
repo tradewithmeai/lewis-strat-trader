@@ -11,6 +11,8 @@ dependencies = [
     "scipy",
     "rich",
     "yfinance",
+    "streamlit>=1.57.0",
+    "plotly>=6.7.0",
 ]
 
 [build-system]

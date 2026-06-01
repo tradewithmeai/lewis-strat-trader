@@ -87,7 +87,11 @@ def update_traffic_light(
     light = entry["light"]
 
     if beating:
-        entry["days_beating"] = entry.get("days_beating", 0) + 1
+        # Coerce None -> 0: the active strategy is written with days_beating=None
+        # each cycle, so a strategy that was active in a prior run can re-enter
+        # here as a challenger with the key present-but-None ('.get(k, 0)' won't
+        # save us). Without this, 'None + 1' raises TypeError.
+        entry["days_beating"] = (entry.get("days_beating") or 0) + 1
     else:
         entry["days_beating"] = 0
         # Reset if challenger falls behind while orange
