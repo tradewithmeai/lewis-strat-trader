@@ -14,6 +14,7 @@ dependencies = [
     "streamlit>=1.57.0",
     "plotly>=6.7.0",
     "feedparser>=6.0.12",
+    "vadersentiment>=3.3.2",
 ]
 
 [build-system]
