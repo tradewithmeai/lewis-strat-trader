@@ -123,6 +123,7 @@ def run_backtest(
     symbol: str = "BTCUSDT",
     train_frac: float = 0.8,
     direction: str = "both",
+    entry_filter: "pd.Series | None" = None,
 ) -> BacktestResult:
     """
     Run a walk-forward backtest on df (1m OHLCV bars).
@@ -139,6 +140,11 @@ def run_backtest(
                "short" (suppress all long entries). Used by regime-aware walk-forward
                to apply directional bias per fold — bull folds long-only, bear folds
                short-only, ranging folds unconstrained.
+
+    entry_filter: optional boolean Series aligned to df's index. When True at a
+               bar, new entries are suppressed (existing positions are held).
+               Intended for risk overlays (e.g. elevated-vol windows after Trump
+               posts). Does NOT affect stop-loss exits.
     """
     if df.empty or len(df) < 100:
         raise ValueError(f"Insufficient data: {len(df)} bars")
@@ -166,6 +172,11 @@ def run_backtest(
     stop_loss_frac = strategy.params.get("stop_loss_pct", 0)
     if stop_loss_frac:
         stop_loss_frac = stop_loss_frac / 100.0
+
+    # Pre-compute entry_filter mask aligned to df_test bars (False = entries OK)
+    _filter_arr = None
+    if entry_filter is not None:
+        _filter_arr = entry_filter.reindex(df_test.index, fill_value=False).values
 
     full_df = pd.concat([df_train, df_test])
 
@@ -219,6 +230,9 @@ def run_backtest(
             sig = 0
 
         # ── Enter ─────────────────────────────────────────────────────────────
+        # entry_filter suppresses new entries (existing positions held normally)
+        if _filter_arr is not None and _filter_arr[i]:
+            sig = 0
         if position == 0:
             if sig == 1:
                 entry_price = price * (1 + SLIPPAGE_BPS)
