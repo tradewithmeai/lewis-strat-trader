@@ -96,7 +96,10 @@ def load_bursts() -> pd.DataFrame:
 def load_hourly(symbol: str, start: date, end: date) -> pd.DataFrame:
     from local_system.signals.live_rollup import load_history_hybrid
 
-    bars = load_history_hybrid(symbol, start, end)
+    try:
+        bars = load_history_hybrid(symbol, start, end)
+    except Exception:  # noqa: BLE001 — lake has nothing usable for this symbol
+        bars = pd.DataFrame()
     if len(bars) < 10_000:  # lake lacks depth (ETH/SOL live-only) -> Binance API
         from local_system.signals.binance_klines import load_klines_1h
 
