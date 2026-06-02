@@ -362,6 +362,14 @@ async def run_loop() -> None:
                 flush=True,
             )
 
+            # Trump post alert check — polls live feed every 5 min (rate-gated
+            # inside trump_alert); no-ops fast on most ticks. Observational only.
+            try:
+                from local_system.signals.trump_alert import check_and_alert
+                check_and_alert()
+            except Exception as alert_exc:  # noqa: BLE001
+                print(f"[paper_trader] trump_alert check failed: {alert_exc}", flush=True)
+
         except Exception as exc:
             print(f"[paper_trader] tick {tick:04d} ERROR: {exc}", flush=True)
 

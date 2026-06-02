@@ -73,7 +73,11 @@ ECON_TOPICS = [t for t in TOPICS if t != "geopolitics"]
 
 NOISE_RE = re.compile(
     r"complete and total endorsement|my great honor to endorse|happy birthday|"
-    r"congratulations|will be interviewed|tune in|enjoy!|\bmaga\b.*patriot.*endorse",
+    r"congratulations|will be interviewed|tune in|enjoy!|\bmaga\b.*patriot.*endorse|"
+    # congressional campaign endorsements — "running for [office]" + district cues
+    r"running for (?:the )?(?:united states )?(?:senate|governor|congress|house)|"
+    r"congressional district|is running to represent|running to (?:be|serve)|"
+    r"doing a (?:fantastic|terrific|incredible|tremendous|great) job representing",
     re.IGNORECASE,
 )
 
