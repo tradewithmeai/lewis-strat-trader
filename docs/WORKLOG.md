@@ -272,3 +272,46 @@ with trailing-vol control; LightGBM with purged/embargoed CV; BH-FDR; OOS
 tradeable-edge). Build it BEFORE seeing results (reduces researcher DOF); the
 real confirmatory run is gated on signal completeness — do not run on partial
 signal and report as confirmatory.
+
+## 2026-06-02 23:05 UTC — Phase 2 harness built (gated) + nested publication roadmap   [commit pending]
+
+**Context:** (1) Build the confirmatory analysis code against the frozen
+pre-registration while the LLM signal completes. (2) Lead author set the overall
+publication strategy — a nested escalation across rigor tiers.
+
+**Did:**
+- **`_phase2_reaction.py`** — implements `PREREGISTRATION.md`: burst-level panel
+  from `trump_signal.parquet`; per-asset OLS `target ~ signal + novelty + topic
+  dummies + trailing_vol_24` with day-clustered SEs; BH-FDR (q=0.10) across the
+  whole p-value grid; OOS tradeable-edge (final 20% by time, sign(signal) rule,
+  net of 0.24% cost, block-bootstrap Sharpe CI). Two run modes: `--smoke`
+  (mechanical test on partial signal → scratch file) and `--confirm` (real run;
+  **refuses unless LLM coverage ≥ 95%** of market-relevant posts). Syntax-checked;
+  not yet run (signal incomplete).
+- **`docs/PAPER/ROADMAP.md`** — the nested plan.
+
+**Decided (with rationale):**
+- **Build-before-results discipline:** the confirmatory harness is written and
+  committed before any Phase-2 number is seen, and `--confirm` is hard-gated on
+  signal completeness, so partial-signal numbers can't leak in as confirmatory.
+  Reduces researcher degrees-of-freedom — the credibility point for the paper.
+- **Nested publication roadmap** (lead author): object track
+  undergrad=finance paper (pause/ship) → master's=AI-boost paper → PhD=unified
+  thesis (both, designed from the undergrad submission); plus a conditional meta
+  track (the *process* as its own research object) if the PhD lands. Adopted with
+  four guard-rails: (1) each tier ships independently — lower tiers NOT contingent
+  on the PhD; (2) the AI-boost track is **robust to a null finance result** (a
+  pre-registered null with no p-hacking is a *stronger* augmentation story than
+  "found alpha") — the most important property, since Phase 2 will likely be null;
+  (3) meta-recursion is optional/aspirational, not load-bearing; (4) the WORKLOG
+  is doubly load-bearing (evidence base for both the AI-boost paper and the meta
+  track) — validates the documentation system.
+- **Grounding:** these are works *at* degree levels of rigor (papers/preprints),
+  not enrolled-degree submissions; flagged to keep expectations clean.
+
+**Dead-ends / caveats:** none. LLM run in flight (340 labels so far).
+
+**Next:** let the LLM layer finish (resumes tomorrow at the daily cap) → run
+`trump_signal.py` merge → Phase 2 `--smoke` to verify mechanically → when
+coverage ≥95%, `--confirm` → draft the undergrad finance paper. Advisor review of
+the Phase-2 implementation recommended before the confirmatory run.
