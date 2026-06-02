@@ -76,51 +76,59 @@ def merge() -> pd.DataFrame:
 
 
 def _validate(df: pd.DataFrame) -> None:
-    print("\n=== VALIDATION GATE ===")
-    ok = True
+    """Build-consistency smoke test — NOT evidence of predictive skill.
 
-    # 1. Apr-9-2025 directive "THIS IS A GREAT TIME TO BUY"
+    The only pass/fail check is [1]: the constructed directive class labels the
+    Apr-9 "GREAT TIME TO BUY" post correctly (near-tautological — that class was
+    built to catch it — so it confirms the pipeline wired up, nothing more).
+    Checks [2]/[3] are DESCRIPTIVE only: an earlier version pass/failed [2] on
+    "china/tariff stance must be net-bearish", which is mis-specified — it
+    conflates rhetorical/market-impact stance with the topic's average return
+    sign. Most china/tariff posts gloat about *already-known* tariffs (a trader
+    does not sell on gloating), so a mildly positive mean stance is expected and
+    correct; the bearish reaction lives in the topic dummy, not the stance. The
+    informative split is is_policy_signal (fresh escalation vs commentary).
+    """
+    print("\n=== VALIDATION GATE (build-consistency smoke test) ===")
+
+    # [1] PASS/FAIL — directive post labelled correctly (the only gate)
     apr9 = df[df.text.str.contains("GREAT TIME TO BUY", case=False, na=False)]
+    ok = False
     if len(apr9):
         r = apr9.iloc[0]
         fb_ok = r.finbert_score > 0
-        llm_ok = (r.get("llm_stance", 0) or 0) > 0 if r.get("has_llm") else None
-        dir_ok = bool(r.get("is_market_directive", False)) if r.get("has_llm") else None
-        print(f"[1] 'GREAT TIME TO BUY' ({r.ts:%Y-%m-%d}): finbert={r.finbert_score:+.2f} "
-              f"{'PASS' if fb_ok else 'FAIL'}; "
-              f"llm_stance={r.get('llm_stance')} dir_flag={r.get('is_market_directive')}")
-        ok &= fb_ok
-        if llm_ok is False:
-            ok = False
+        llm_stance = r.get("llm_stance")
+        dir_flag = bool(r.get("is_market_directive", False))
+        # pass: FinBERT positive AND (if LLM-labelled) stance>0 and directive flagged
+        llm_ok = True if not r.get("has_llm") else ((llm_stance or 0) > 0 and dir_flag)
+        ok = bool(fb_ok and llm_ok)
+        print(f"[1] 'GREAT TIME TO BUY' ({r.ts:%Y-%m-%d}): finbert={r.finbert_score:+.2f}, "
+              f"llm_stance={llm_stance}, directive={dir_flag} -> {'PASS' if ok else 'FAIL'}")
     else:
-        print("[1] directive post not found — FAIL")
-        ok = False
+        print("[1] directive post not found -> FAIL")
 
-    # 2. china/tariff posts net-bearish
+    # [2] DESCRIPTIVE — china/tariff stance, split by is_policy_signal
     ct = df[(df.topic_china | df.topic_tariffs_trade) & ~df.is_noise]
-    if len(ct):
-        fb_mean = ct.finbert_score.mean()
-        llm_sub = ct[ct.get("has_llm", False)] if "has_llm" in ct else ct.iloc[0:0]
-        llm_mean = llm_sub["llm_stance"].mean() if len(llm_sub) else float("nan")
-        print(f"[2] china/tariff posts (n={len(ct)}): finbert mean={fb_mean:+.3f}; "
-              f"llm_stance mean={llm_mean:+.3f}")
-        # FinBERT may be near-zero (news framing); the LLM stance is the real test
-        if not np.isnan(llm_mean):
-            print(f"    -> LLM net-bearish: {'PASS' if llm_mean < 0 else 'FAIL'}")
-            ok &= llm_mean < 0
-    else:
-        print("[2] no china/tariff posts — FAIL")
-        ok = False
+    if len(ct) and "has_llm" in ct:
+        lc = ct[ct.has_llm.fillna(False)]
+        print(f"[2] china/tariff (n={len(ct)}, llm-labelled={len(lc)}): "
+              f"stance mean={lc.llm_stance.mean():+.3f} (descriptive, NOT a gate)")
+        if "is_policy_signal" in lc and lc.is_policy_signal.notna().any():
+            pol = lc.is_policy_signal.fillna(False).astype(bool)
+            esc = lc[pol]
+            com = lc[~pol]
+            print(f"    escalation posts (is_policy_signal, n={len(esc)}): "
+                  f"stance mean={esc.llm_stance.mean():+.3f}")
+            print(f"    commentary posts (n={len(com)}): "
+                  f"stance mean={com.llm_stance.mean():+.3f}")
 
-    # 3. FinBERT vs VADER spread on market-relevant
+    # [3] DESCRIPTIVE — FinBERT vs VADER on market-relevant
     mr = df[df.market_relevant & ~df.is_noise]
-    print(f"[3] market-relevant (n={len(mr)}): "
-          f"FinBERT mean={mr.finbert_score.mean():+.3f} std={mr.finbert_score.std():.3f} | "
-          f"VADER mean={mr.sentiment.mean():+.3f} std={mr.sentiment.std():.3f}")
-    print(f"    -> FinBERT less positively-biased than VADER: "
-          f"{'PASS' if abs(mr.finbert_score.mean()) < abs(mr.sentiment.mean()) else 'NOTE'}")
+    print(f"[3] market-relevant (n={len(mr)}): FinBERT mean={mr.finbert_score.mean():+.3f} | "
+          f"VADER mean={mr.sentiment.mean():+.3f} (descriptive)")
 
-    print(f"\nGATE: {'PASS — proceed to Phase 2' if ok else 'FAIL — fix classifier before Phase 2'}")
+    print(f"\nGATE (build-consistency only): "
+          f"{'PASS — pipeline wired correctly' if ok else 'FAIL — directive mislabelled, check pipeline'}")
 
 
 def main() -> None:

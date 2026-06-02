@@ -315,3 +315,48 @@ publication strategy — a nested escalation across rigor tiers.
 `trump_signal.py` merge → Phase 2 `--smoke` to verify mechanically → when
 coverage ≥95%, `--confirm` → draft the undergrad finance paper. Advisor review of
 the Phase-2 implementation recommended before the confirmatory run.
+
+## 2026-06-02 23:30 UTC — LLM layer 89% done; gate fixed; signal sign-inversion ruled out; Phase 2 verified   [commit pending]
+
+**Context:** Run the LLM layer to scale, merge, and verify the Phase-2 harness
+mechanically while watching for signal-quality problems.
+
+**Did / Tested:**
+- LLM layer hit the daily cap cleanly: **1,640 / ~1,851 labels (89%)**, 242,598
+  tokens (UTC still 2026-06-02 so the budget guard correctly blocked the last
+  ~211 posts; they finish on the next run after UTC midnight). Merged →
+  `trump_signal.parquet` (27,387 rows, 1,640 LLM-labelled; signal mean −0.077).
+- **Validation gate rewritten** (advisor): the old pass/fail on "china/tariff
+  stance must be net-bearish" was **mis-specified** — it conflated rhetorical/
+  market-impact stance with the topic's average return sign. Now: check [1]
+  (directive labelled correctly) is the only pass/fail (build-consistency,
+  near-tautological); [2]/[3] are descriptive. Gate PASSES.
+- **Investigated a real worry:** the is_policy_signal split showed escalation
+  posts at stance **+0.291** vs commentary **−0.042** — looked like the signal
+  was sign-inverted on the market-moving posts (Trump announces tariffs
+  triumphantly). **Checked the actual labels:** on the Oct-10-2025 −12% crash,
+  the hostile-escalation posts ("China is becoming very hostile", "extraordinarily
+  aggressive position") were correctly **−1 (bearish)**; the +2 escalation posts
+  are mostly genuinely-bullish content (GDP 4.3% beat, "Record Stock Market").
+  Conclusion: **no sign inversion** — the +0.291 is composition (is_policy_signal
+  sweeps in good-news posts), and the classifier reads hostile escalations
+  bearish and good news bullish. No re-run needed; the advisor's "prompt is fine"
+  call holds. (Great paper note: we tested for tone-bias and the classifier is sound.)
+- **Phase-2 harness verified mechanically** (`--smoke`, partial signal, scratch
+  output — NOT confirmatory): OLS grid + BH-FDR + OOS edge all execute. Caught and
+  fixed a gap — `load_bursts` wasn't carrying `is_policy_signal` through burst
+  aggregation, so the policy/commentary edge split silently vanished; now prints.
+  Smoke result: **no tradeable edge** on any asset/subset (sign(signal) rule loses
+  net of 0.24% cost trading every burst) — the anticipated null, on partial data.
+- Fixed a `~` on object-dtype-bool bug in the gate (`~True == -2` → KeyError);
+  added `.astype(bool)`.
+
+**Decided:** signal stands as-is (no prompt change, no costly re-run) — evidence
+ruled out the sign-inversion worry. Phase-2 trading rule kept as pre-registered
+(sign(signal), every burst); the policy/commentary split is the informative
+secondary lens (advisor). Confirmatory run still gated on ≥95% coverage + a
+methodology review.
+
+**Next:** methodology review + deepened literature review via an agent fan-out
+(the advisor-recommended pre-confirmatory review, parallelised); LLM layer
+finishes after UTC midnight → ≥95% coverage → `--confirm`.

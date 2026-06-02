@@ -74,9 +74,10 @@ def load_bursts() -> pd.DataFrame:
     }
     if "conviction" in rel:
         agg["conviction"] = "max"
-    if "is_market_directive" in rel:
-        rel["is_market_directive"] = rel["is_market_directive"].fillna(False).astype(bool)
-        agg["is_market_directive"] = "max"
+    for flag in ("is_market_directive", "is_policy_signal"):
+        if flag in rel:
+            rel[flag] = rel[flag].fillna(False).astype(bool)
+            agg[flag] = "max"
     bursts = rel.groupby("burst_id").agg(agg).reset_index()
     bursts["hour"] = bursts.ts.dt.floor("h")
     bursts = bursts.sort_values("ts").drop_duplicates(subset="hour", keep="first")
@@ -166,28 +167,39 @@ def analyse_asset(symbol: str, bursts: pd.DataFrame) -> list[dict]:
     return grid
 
 
-def oos_trading_edge(symbol: str, bursts: pd.DataFrame) -> dict:
-    """Pre-registered RQ3 test: sign(signal) rule on the final 20% by time."""
-    bars = load_hourly(symbol, bursts.ts.min().date(), date.today())
-    joined = bursts.merge(bars, left_on="hour", right_index=True, how="inner").sort_values("ts")
-    split = int(len(joined) * (1 - OOS_FRAC))
-    oos = joined.iloc[split:]
-    # Trade direction = sign(signal); pnl over the 4h horizon, net of costs.
+def _edge_stats(oos: pd.DataFrame, symbol: str, label: str) -> dict:
     horizon = "fwd_ret_4"
     oos = oos.dropna(subset=[horizon, "signal"])
     oos = oos[oos.signal.abs() > 1e-6]
     if len(oos) < 20:
-        return {"asset": symbol, "n": len(oos), "verdict": "insufficient OOS events"}
+        return {"asset": symbol, "subset": label, "n": len(oos), "verdict": "insufficient OOS events"}
     gross = np.sign(oos["signal"].values) * oos[horizon].values
     net = gross - ROUND_TRIP_COST
     sharpe = net.mean() / net.std() * np.sqrt(365 * 24 / 4) if net.std() > 0 else 0.0
     lo, hi = block_bootstrap_sharpe_ci(net)
     return {
-        "asset": symbol, "n": int(len(oos)),
+        "asset": symbol, "subset": label, "n": int(len(oos)),
         "mean_net_bp": float(net.mean() * 1e4), "sharpe": float(sharpe),
-        "ci_low": lo, "ci_high": hi,
-        "verdict": "EDGE" if lo > 0 else "no edge",
+        "ci_low": lo, "ci_high": hi, "verdict": "EDGE" if lo > 0 else "no edge",
     }
+
+
+def oos_trading_edge(symbol: str, bursts: pd.DataFrame) -> list[dict]:
+    """Pre-registered RQ3 test: sign(signal) rule on the final 20% by time.
+
+    Reported for all market-relevant bursts AND split by is_policy_signal —
+    fresh escalations are the candidate incremental-info subset (advisor); a
+    directional edge, if any, is far likelier there than in commentary/gloating.
+    """
+    bars = load_hourly(symbol, bursts.ts.min().date(), date.today())
+    joined = bursts.merge(bars, left_on="hour", right_index=True, how="inner").sort_values("ts")
+    oos = joined.iloc[int(len(joined) * (1 - OOS_FRAC)):]
+    out = [_edge_stats(oos, symbol, "all")]
+    if "is_policy_signal" in oos:
+        pol = oos["is_policy_signal"].fillna(False).astype(bool)
+        out.append(_edge_stats(oos[pol], symbol, "policy/escalation"))
+        out.append(_edge_stats(oos[~pol], symbol, "commentary"))
+    return out
 
 
 # ----------------------------------------------------------------- main
@@ -241,23 +253,25 @@ def main() -> None:
                  f"| {g['p']:.3f} | {'YES' if g['fdr_sig'] else ''} |")
 
     # --- OOS tradeable-edge (RQ3) ---
-    emit("\n## OOS tradeable-edge (final 20% by time, net of costs)")
-    emit("| asset | n | mean net | Sharpe | 95% CI | verdict |")
-    emit("|---|---|---|---|---|---|")
+    emit("\n## OOS tradeable-edge (final 20% by time, net of costs, 4h hold)")
+    emit("| asset | subset | n | mean net | Sharpe | 95% CI | verdict |")
+    emit("|---|---|---|---|---|---|---|")
     any_edge = False
     for sym in CRYPTO:
         try:
-            e = oos_trading_edge(sym, bursts)
+            edges = oos_trading_edge(sym, bursts)
         except Exception as exc:  # noqa: BLE001
-            emit(f"| {sym} | — | — | — | — | ERROR {exc} |")
+            emit(f"| {sym} | — | — | — | — | — | ERROR {exc} |")
             continue
-        if "sharpe" in e:
-            any_edge |= e["verdict"] == "EDGE"
-            emit(f"| {e['asset']} | {e['n']} | {e['mean_net_bp']:+.1f}bp | {e['sharpe']:+.2f} "
-                 f"| [{e['ci_low']:+.2f}, {e['ci_high']:+.2f}] | {e['verdict']} |")
-        else:
-            emit(f"| {e['asset']} | {e['n']} | — | — | — | {e['verdict']} |")
-    emit(f"\n**RQ3 verdict:** {'EDGE found on >=1 asset' if any_edge else 'NO tradeable edge after costs'}")
+        for e in edges:
+            if "sharpe" in e:
+                any_edge |= e["verdict"] == "EDGE"
+                emit(f"| {e['asset']} | {e['subset']} | {e['n']} | {e['mean_net_bp']:+.1f}bp "
+                     f"| {e['sharpe']:+.2f} | [{e['ci_low']:+.2f}, {e['ci_high']:+.2f}] "
+                     f"| {e['verdict']} |")
+            else:
+                emit(f"| {e['asset']} | {e['subset']} | {e['n']} | — | — | — | {e['verdict']} |")
+    emit(f"\n**RQ3 verdict:** {'EDGE found on >=1 asset/subset' if any_edge else 'NO tradeable edge after costs'}")
 
     out = SCRATCH_MD if smoke else RESULTS_MD
     out.parent.mkdir(parents=True, exist_ok=True)
