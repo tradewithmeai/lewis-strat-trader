@@ -44,7 +44,7 @@ OUT_PATH = Path("state/signals/trump_events.parquet")
 # market_relevant; geopolitics is risk-off-relevant but flagged separately.
 TOPICS: dict[str, str] = {
     "tariffs_trade": r"tariff|trade (?:deal|war|deficit|agreement)|import tax|exports?\b|"
-    r"reciprocal|dumping|usmca|nafta|trade barrier",
+    r"reciprocal|dumping|usmca|nafta|trade barrier|liberation day",
     "china": r"\bchina\b|\bchinese\b|\bxi\b|beijing|taiwan",
     "fed_rates": r"\bfed\b|federal reserve|\bpowell\b|interest rate|rate cuts?|rate hikes?|"
     r"\binflation\b|\bcpi\b|monetary",
