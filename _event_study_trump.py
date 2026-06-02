@@ -143,7 +143,7 @@ def null_distribution(
 
     # stratum key: 6h-of-day bucket x trailing-vol quintile (bins from the
     # full era pool so event hours land in well-defined quintiles)
-    vol_bins = pool["trail_vol_24"].quantile([0, 0.2, 0.4, 0.6, 0.8, 1.0]).values
+    vol_bins = pool["trail_vol_24"].quantile([0, 0.2, 0.4, 0.6, 0.8, 1.0]).to_numpy().copy()
     vol_bins[0], vol_bins[-1] = -np.inf, np.inf
 
     def strata(df: pd.DataFrame) -> pd.Series:
