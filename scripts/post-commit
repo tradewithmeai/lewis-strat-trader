@@ -1,0 +1,32 @@
+#!/bin/sh
+# post-commit — deterministic spine for the work log.
+#
+# Appends one tab-separated line per commit to state/commit_log.tsv:
+#   <iso-utc>  <short-hash>  <subject>  <files-changed-count>  <files>
+#
+# This is the automatic, model-free half of the documentation system: it fires
+# on EVERY commit regardless of how it was made, so there is always a complete
+# index of commits. The narrative half (decisions, reasoning, test results) is
+# written by the `/worklog` skill into docs/WORKLOG.md, which uses this file to
+# know which commits still need a narrative entry.
+#
+# state/commit_log.tsv is gitignored (a local index/cross-check, not an
+# artifact), so this hook never leaves the tree dirty.
+#
+# Install (from repo root):
+#   cp scripts/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+# or:  git config core.hooksPath scripts
+
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+LOG="$REPO_ROOT/state/commit_log.tsv"
+mkdir -p "$REPO_ROOT/state"
+
+ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+HASH=$(git rev-parse --short HEAD)
+SUBJECT=$(git log -1 --pretty=%s)
+FILES=$(git show --pretty="" --name-only HEAD | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+NFILES=$(git show --pretty="" --name-only HEAD | grep -vc '^$' || echo 0)
+
+printf '%s\t%s\t%s\t%s\t%s\n' "$ISO" "$HASH" "$SUBJECT" "$NFILES" "$FILES" >> "$LOG"

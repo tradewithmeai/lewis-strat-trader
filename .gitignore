@@ -16,6 +16,7 @@ state/paper_trades.jsonl
 state/heartbeat.json
 state/hypotheses.jsonl
 state/history/
+state/commit_log.tsv
 
 # Throwaway validation scripts generated during research
 _val_*.py
