@@ -107,7 +107,24 @@ def _select_pending(df: pd.DataFrame, done: set[str]) -> pd.DataFrame:
     # Hard cases = market-relevant, non-noise posts (where directional idiom
     # matters). FinBERT already covers the bulk sentiment.
     hard = df[df.market_relevant & ~df.is_noise].copy()
-    return hard[~hard["id"].astype(str).isin(done)].reset_index(drop=True)
+    hard = hard[~hard["id"].astype(str).isin(done)]
+
+    # Priority ordering so a budget-truncated run still covers the most
+    # paper-relevant posts first: directives/reassurance, then the Phase-2 topic
+    # set, then posts where FinBERT is least confident (LLM adds most there),
+    # then novelty. A partial day's run is therefore not a random subset.
+    import numpy as np
+
+    prio = np.zeros(len(hard))
+    prio += 100 * (hard["topic_market_directive"] | hard["topic_reassurance"]).to_numpy()
+    for t in ("topic_china", "topic_tariffs_trade", "topic_fed_rates",
+              "topic_crypto", "topic_dollar"):
+        if t in hard:
+            prio += 10 * hard[t].to_numpy()
+    prio += 5 * (hard["finbert_score"].abs() < 0.15).to_numpy()  # low confidence
+    prio += hard["novelty_7d"].fillna(0).to_numpy()
+    hard = hard.assign(_prio=prio).sort_values("_prio", ascending=False)
+    return hard.drop(columns="_prio").reset_index(drop=True)
 
 
 def _classify_batch(client, posts: list[dict]) -> tuple[list[dict], int]:
