@@ -113,41 +113,55 @@ def load_hourly(symbol: str, start: date, end: date) -> pd.DataFrame:
         out[f"fwd_vol_{k}"] = np.sqrt(
             (out.logret**2).rolling(k).sum().shift(-k)
         )
+    # trailing 24h realized vol through the PREVIOUS bar close — known at event
+    # time. The key confound control: vol clusters, and he may post *because*
+    # markets are already moving; the null must be matched on this.
+    out["trail_vol_24"] = np.sqrt((out.logret**2).rolling(24).sum()).shift(1)
     return out
 
 
 # ---------------------------------------------------------------- null
 def null_distribution(
-    bars: pd.DataFrame, event_hours: pd.DatetimeIndex, stat_cols: list[str]
+    bars: pd.DataFrame,
+    event_hours: pd.DatetimeIndex,
+    stat_cols: list[str],
+    match_vol: bool = True,
 ) -> dict[str, np.ndarray]:
-    """Bootstrap null means: random hours matching events' hour-of-day mix,
-    excluding hours within 24h after any event."""
+    """Bootstrap null means: random hours matching the events' hour-of-day
+    bucket AND trailing-24h-vol quintile (vol clusters; posting timing is
+    endogenous — an unmatched null lets "he posts when markets already move"
+    masquerade as an event effect). Excludes hours within 24h after any event,
+    restricted to the events' own era."""
     tainted = pd.DatetimeIndex(
         np.unique(np.concatenate([(event_hours + pd.Timedelta(hours=h)).values for h in range(25)]))
     )
-    pool = bars.dropna(subset=stat_cols)
+    pool = bars.dropna(subset=stat_cols + ["trail_vol_24"])
     # null must come from the same era as the events — otherwise regime drift
     # (bull 2023-24 vs chop 2025) masquerades as an event effect
     pool = pool[(pool.index >= event_hours.min()) & (pool.index <= event_hours.max())]
-    pool = pool[~pool.index.isin(tainted)]
-    by_hod = {h: g for h, g in pool.groupby(pool.index.hour)}
-    hod_counts = pd.Series(event_hours.hour).value_counts()
+    pool_clean = pool[~pool.index.isin(tainted)]
 
+    # stratum key: 6h-of-day bucket x trailing-vol quintile (bins from the
+    # full era pool so event hours land in well-defined quintiles)
+    vol_bins = pool["trail_vol_24"].quantile([0, 0.2, 0.4, 0.6, 0.8, 1.0]).values
+    vol_bins[0], vol_bins[-1] = -np.inf, np.inf
+
+    def strata(df: pd.DataFrame) -> pd.Series:
+        hod = df.index.hour // 6
+        volq = pd.cut(df["trail_vol_24"], bins=vol_bins, labels=False)
+        return hod * 10 + volq if match_vol else pd.Series(hod, index=df.index)
+
+    pool_strata = strata(pool_clean)
+    ev = pool.reindex(event_hours).dropna(subset=["trail_vol_24"])
+    ev_counts = strata(ev).value_counts()
+
+    by_stratum = {s: g for s, g in pool_clean.groupby(pool_strata)}
+    pairs = [(s, int(n)) for s, n in ev_counts.items() if s in by_stratum]
     draws: dict[str, list[float]] = {c: [] for c in stat_cols}
     for _ in range(N_BOOT):
-        idx = np.concatenate(
-            [
-                RNG.choice(len(by_hod[h]), size=n, replace=True)
-                for h, n in hod_counts.items()
-                if h in by_hod
-            ]
-        )
-        offs = np.cumsum([0] + [n for h, n in hod_counts.items() if h in by_hod])
         sample = pd.concat(
-            [
-                by_hod[h].iloc[idx[offs[i] : offs[i + 1]]]
-                for i, (h, n) in enumerate((h, n) for h, n in hod_counts.items() if h in by_hod)
-            ]
+            [by_stratum[s].iloc[RNG.choice(len(by_stratum[s]), size=n, replace=True)]
+             for s, n in pairs]
         )
         for c in stat_cols:
             draws[c].append(sample[c].mean())
@@ -197,8 +211,32 @@ def study_asset(symbol: str, bursts: pd.DataFrame) -> None:
             emit(f"| {c} | {obs * 1e4:+.1f} bp | {null[c].mean() * 1e4:+.1f} bp | "
                  f"{p:.3f}{flag} |")
 
-    # H2/H3 regression: fwd_ret ~ sentiment + engagement + topics, day-clustered SEs
+    # discriminating vol test: fwd_vol ~ event + trailing vol + hod, all bars.
+    # If the event dummy survives the trailing-vol control, posts carry vol
+    # information beyond "he posts when markets are already moving".
     import statsmodels.api as sm
+
+    emit("\n### Vol regression with trailing-vol control (all bars, day-clustered SEs)")
+    for era_name, lo, hi in [
+        ("full", None, None),
+        ("2025+", SPLIT_AT, None),
+    ]:
+        b = bars.dropna(subset=[f"fwd_vol_{k}" for k in HORIZONS] + ["trail_vol_24"]).copy()
+        if lo is not None:
+            b = b[b.index >= lo]
+        b["event"] = b.index.isin(joined.hour).astype(float)
+        hod = pd.get_dummies(b.index.hour // 6, prefix="hod", drop_first=True).set_index(b.index)
+        X = sm.add_constant(pd.concat([b[["event", "trail_vol_24"]], hod], axis=1).astype(float))
+        terms = []
+        for k in HORIZONS:
+            m = sm.OLS(b[f"fwd_vol_{k}"].astype(float), X).fit(
+                cov_type="cluster", cov_kwds={"groups": b.index.date}
+            )
+            terms.append(f"vol_{k}h: event b={m.params['event'] * 1e4:+.2f}bp "
+                         f"(p={m.pvalues['event']:.3f})")
+        emit(f"- {era_name} (n={len(b)}, events={int(b.event.sum())}): " + "; ".join(terms))
+
+    # H2/H3 regression: fwd_ret ~ sentiment + engagement + topics, day-clustered SEs
 
     emit("\n### Regressions (day-clustered SEs)")
     for k in HORIZONS:
