@@ -97,6 +97,10 @@ def load_hourly(symbol: str, start: date, end: date) -> pd.DataFrame:
     from local_system.signals.live_rollup import load_history_hybrid
 
     bars = load_history_hybrid(symbol, start, end)
+    if len(bars) < 10_000:  # lake lacks depth (ETH/SOL live-only) -> Binance API
+        from local_system.signals.binance_klines import load_klines_1h
+
+        bars = load_klines_1h(symbol, start, end)
     bars = bars[~bars.index.duplicated(keep="last")].sort_index()
     out = pd.DataFrame(index=bars.index)
     out["logret"] = np.log(bars.close).diff()
