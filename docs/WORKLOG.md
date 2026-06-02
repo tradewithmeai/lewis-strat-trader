@@ -225,3 +225,50 @@ it must not be cited as evidence of predictive skill.
 → merge → the (smoke-test) validation gate → execute the pre-registered Phase 2.
 Open author decisions noted in `THESIS_STRUCTURE.md` (primary tier, AI-chapter
 placement, venue, byline).
+
+## 2026-06-02 22:50 UTC — Phase 1 execution: local layer complete, LLM layer validated + launched   [commit ab9f1a3 + pending]
+
+**Context:** Run the frozen Phase-1 signal pipeline at full scale to produce the
+text-only event signal the pre-registered Phase 2 needs.
+
+**Did / Tested:**
+- **Local layer complete** — FinBERT + MiniLM embeddings + causal 7d novelty on
+  all **27,387** text posts (`trump_signal_local.parquet`, `trump_embeddings.npy`
+  27387×384). ~1h on CPU (PyPI torch is CPU-only; RTX 2070 unused — acceptable
+  one-time cached cost).
+- **FinBERT sanity vs known events:** china **−0.152** (bearish ✓), crypto
+  **+0.157** (✓), market_directive **+0.477** (✓), Apr-9 directive **+0.169**
+  (mild), **tariffs +0.000** (FinBERT misses that tariffs are risk-off). The
+  weak spots (tariffs, mild directive) are exactly the LLM layer's job. On
+  market-relevant posts FinBERT mean **−0.012** vs VADER **+0.370** — the
+  market-calibration upgrade confirmed at scale.
+- **LLM hard-case layer validated** (gpt-4.1-mini, 40-post smoke test, ~3.0k
+  tokens/batch): **"THIS IS A GREAT TIME TO BUY!!! DJT" → stance +2, conviction
+  1.0, is_market_directive=True** (vs FinBERT's mild +0.17 — the LLM reads the
+  maximal directive). "MARKETS going to BOOM" → +1/directive; "calls for Fed
+  rate cuts" → +2/directive+policy; china "hit much harder than USA" → +1
+  (correct nuanced read: China losing = bullish US); noise/political → 0/conv 0.
+- Added **priority ordering** to the hard-case selector (`ab9f1a3`): directives/
+  reassurance → Phase-2 topics → low-FinBERT-confidence → novelty, so a
+  budget-truncated run covers the most paper-relevant posts first (not a random
+  subset).
+- **Full budgeted run launched** (background): 1,851 market-relevant non-noise
+  posts; ~93 batches × ~3k tok ≈ 281k > the 240k/day free cap, so it processes
+  ~80% today, checkpoints to `trump_signal_llm.jsonl` (resumable, skips done
+  ids), and finishes tomorrow.
+
+**Decided:** hybrid confirmed correct — FinBERT handles bulk directional
+sentiment; LLM supplies the idiom/directive nuance FinBERT can't (tariffs,
+maximal buy-directives). Budget-aware checkpointing chosen over a one-shot run so
+the daily free-tier cap cannot lose progress (honors the usage-limit lesson).
+
+**Dead-ends / caveats:** none new. Note the mixed labelling (LLM where available,
+FinBERT otherwise) is a disclosed methodological seam, already in the
+pre-registration's blended-signal definition.
+
+**Next:** while the LLM run completes (today/tomorrow), build the Phase-2
+confirmatory harness implementing `PREREGISTRATION.md` exactly (OLS+clustered SEs
+with trailing-vol control; LightGBM with purged/embargoed CV; BH-FDR; OOS
+tradeable-edge). Build it BEFORE seeing results (reduces researcher DOF); the
+real confirmatory run is gated on signal completeness — do not run on partial
+signal and report as confirmatory.
