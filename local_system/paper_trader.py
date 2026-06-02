@@ -275,15 +275,16 @@ def _load_history():
 
     end = date.today()
     start = end - timedelta(days=HISTORY_DAYS)
-    # backfill_only=False so the live (most recent) days are included — the
-    # monitor must track real time. The lake loader now self-heals around the
-    # collector's partial/corrupt live files (footer-aware validation +
-    # quarantine-on-read in lake_adapter), so this no longer crashes the way it
-    # did when it pinned to the last clean backfill bar.
-    df_1m = load_bars("BTCUSDT", start, end, backfill_only=False)
-    if df_1m.empty:
-        return pd.DataFrame()
-    return resample_ohlcv(df_1m, "1h")
+    # Hybrid loader: clean backfill for the bulk + a per-day 1h rollup of the
+    # live 1s days for real-time freshness. The live partitions have multiple
+    # parquet-corruption modes (truncated footers AND corrupt thrift metadata,
+    # the latter reported by DuckDB with no file path) plus ~1140 files/day, so
+    # reading them directly per tick is neither robust nor fast. live_rollup
+    # reads each live day once (per-file, skipping corrupt files), aggregates to
+    # 1h, and caches it; this stitches backfill + rollup into a clean series.
+    from local_system.signals.live_rollup import load_history_hybrid
+
+    return load_history_hybrid("BTCUSDT", start, end)
 
 
 async def run_loop() -> None:

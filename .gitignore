@@ -35,3 +35,4 @@ Thumbs.db
 
 # Signal capture runtime data
 state/signals/
+state/lake_rollup/
