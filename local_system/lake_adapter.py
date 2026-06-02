@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -39,9 +40,20 @@ _PARQUET_MAGIC = b"PAR1"
 
 
 def _valid_parquet(path: Path) -> bool:
-    """Return True if file starts with the PAR1 magic bytes."""
+    """Return True only if the file has the PAR1 magic at BOTH ends.
+
+    Parquet writes the 4-byte magic as a header *and* a footer. The collector's
+    in-progress live flush has the header but a truncated/missing footer, so a
+    header-only check passes it and DuckDB then throws 'No magic bytes found at
+    end of file'. We must validate the footer too (seek to end-4).
+    """
     try:
+        if path.stat().st_size < 8:  # need at least header+footer
+            return False
         with open(path, "rb") as f:
+            if f.read(4) != _PARQUET_MAGIC:
+                return False
+            f.seek(-4, 2)  # last 4 bytes
             return f.read(4) == _PARQUET_MAGIC
     except OSError:
         return False
@@ -50,6 +62,10 @@ def _valid_parquet(path: Path) -> bool:
 # Days with more than this many parquet files are live 1s data (not backfill).
 # Live days have ~1140 files (one per minute flush); backfill days have 1-5.
 _LIVE_DAY_FILE_THRESHOLD = 50
+
+# On a live day, only the newest few files can be mid-write/partial, so we
+# validate just the tail rather than scanning all ~1140 every load.
+_LIVE_TAIL_CHECK = 8
 
 
 def _is_live_day(day_dir: Path) -> bool:
@@ -79,8 +95,13 @@ def _quarantine_corrupt_files(
             / f"month={d.month:02d}"
             / f"day={d.day:02d}"
         )
-        if p.exists() and not _is_live_day(p):
-            for f in p.glob("*.parquet"):
+        if p.exists():
+            files = sorted(p.glob("*.parquet"))
+            # Live days: only the newest files can be mid-write — check the tail.
+            # Backfill days: few files, check all.
+            if len(files) > _LIVE_DAY_FILE_THRESHOLD:
+                files = files[-_LIVE_TAIL_CHECK:]
+            for f in files:
                 if not _valid_parquet(f):
                     f.rename(f.with_suffix(".parquet.bad"))
                     quarantined += 1
@@ -122,8 +143,20 @@ def _day_paths(
     return paths
 
 
-def _raw_query(paths: list[str]) -> pd.DataFrame:
-    """Execute DuckDB query over a list of per-day glob patterns."""
+_CORRUPT_PATH_RE = re.compile(r"'([^']+\.parquet)'")
+
+
+def _raw_query(paths: list[str], _max_heals: int = 500) -> pd.DataFrame:
+    """Execute DuckDB query over per-day glob patterns, self-healing corrupt files.
+
+    The live collector occasionally leaves a partially-written parquet (valid
+    header, truncated footer) *anywhere* in a day partition — not just the newest
+    file — which DuckDB rejects with 'No magic bytes found at end of file <path>'.
+    The tail-only quarantine in _quarantine_corrupt_files catches the common case
+    cheaply; this is the safety net for the rest: parse the offending path from
+    the error, rename it to .parquet.bad (so the *.parquet glob skips it), retry.
+    Capped so a non-quarantine-able error can't loop forever.
+    """
     if not paths:
         return pd.DataFrame()
     glob_list = "[" + ",".join(f"'{p}'" for p in paths) + "]"
@@ -133,9 +166,25 @@ def _raw_query(paths: list[str]) -> pd.DataFrame:
         FROM read_parquet({glob_list})
         ORDER BY window_start
     """
-    con = duckdb.connect()
-    df = con.execute(sql).df()
-    con.close()
+    df = None
+    for _ in range(_max_heals):
+        con = duckdb.connect()
+        try:
+            df = con.execute(sql).df()
+            break
+        except Exception as exc:  # noqa: BLE001
+            msg = str(exc)
+            m = _CORRUPT_PATH_RE.search(msg)
+            if not m or "magic bytes" not in msg.lower():
+                raise
+            bad = Path(m.group(1))
+            if not (bad.exists() and bad.suffix == ".parquet"):
+                raise
+            bad.rename(bad.with_suffix(".parquet.bad"))
+        finally:
+            con.close()
+    if df is None:
+        raise RuntimeError(f"_raw_query: exceeded {_max_heals} corrupt-file quarantines; aborting")
     if df.empty:
         return df
     df["window_start"] = pd.to_datetime(df["window_start"], utc=True)

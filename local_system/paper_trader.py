@@ -275,7 +275,11 @@ def _load_history():
 
     end = date.today()
     start = end - timedelta(days=HISTORY_DAYS)
-    # backfill_only=False so the live (most recent) days are included.
+    # backfill_only=False so the live (most recent) days are included — the
+    # monitor must track real time. The lake loader now self-heals around the
+    # collector's partial/corrupt live files (footer-aware validation +
+    # quarantine-on-read in lake_adapter), so this no longer crashes the way it
+    # did when it pinned to the last clean backfill bar.
     df_1m = load_bars("BTCUSDT", start, end, backfill_only=False)
     if df_1m.empty:
         return pd.DataFrame()
