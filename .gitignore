@@ -32,3 +32,6 @@ _val_*.py
 # OS
 .DS_Store
 Thumbs.db
+
+# Signal capture runtime data
+state/signals/
