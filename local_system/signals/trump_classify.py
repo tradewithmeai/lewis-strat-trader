@@ -58,6 +58,16 @@ TOPICS: dict[str, str] = {
     r"big,? beautiful bill|govt? shutdown|government shutdown",
     "geopolitics": r"\brussia\b|ukraine|putin|\biran\b|israel|\bnuclear\b|north korea|"
     r"missile|\bwar\b|ceasefire|\bnato\b",
+    # explicit market directives — the "THIS IS A GREAT TIME TO BUY!!! DJT"
+    # class (2025-04-09, 4h before the tariff-pause rally; the accused-
+    # manipulation posts). Policy keywords miss these entirely.
+    "market_directive": r"time to buy|buy now|great time to (?:buy|invest)|"
+    r"buy stocks?|markets? (?:will|are going to) (?:boom|soar|go (?:way )?up)|"
+    r"stock market (?:is|will be) (?:up|booming|soaring)",
+    # calm-the-market reassurance — fires almost exclusively during stress
+    # ("BE COOL! Everything is going to work out well", "don't panic")
+    "reassurance": r"be cool|don'?t panic|panican|everything (?:is going to|will) work out|"
+    r"don'?t be (?:weak|stupid)|hang tough|be patient[,.!]",
 }
 ECON_TOPICS = [t for t in TOPICS if t != "geopolitics"]
 

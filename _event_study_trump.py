@@ -66,6 +66,8 @@ TOPIC_COLS = [
     "topic_markets",
     "topic_taxes_fiscal",
     "topic_geopolitics",
+    "topic_market_directive",
+    "topic_reassurance",
 ]
 
 report = StringIO()
