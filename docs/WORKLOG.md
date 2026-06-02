@@ -158,3 +158,70 @@ off the critical path. Bookmarked, not adopted.
 Phase 2 (purged/embedded-CV regression of all assets+macro on the signal).
 
 <!-- worklog:end-of-seed -->
+
+## 2026-06-02 22:41 UTC — Documentation system + paper-planning scaffold   [commit 895c1a8 + pending]
+
+**Context:** User revealed the end goal — write this up for **publication**,
+with the user as lead and AI doing most of the execution, sharing credit. That
+raises the bar to peer-review standards and is *why* a full method trail matters.
+First they asked for automatic documentation of every twist/turn/decision; then
+they clarified the target: a **technical thesis** ("more tech than finance"),
+with the **AI-augmentation angle** as the primary interest, delivered at
+**three levels — bachelor's, master's, PhD.**
+
+**Did:**
+- **Work-log system** (895c1a8): `/worklog` skill (`.claude/skills/worklog/`)
+  that reads the conversation and appends structured entries to
+  `docs/WORKLOG.md`; a `post-commit` git hook (`scripts/post-commit` →
+  `.git/hooks/`) that records a deterministic commit spine to gitignored
+  `state/commit_log.tsv`; seeded WORKLOG with the full session history; memory
+  feedback `worklog-commit-ritual` so the ritual survives sessions.
+- **Paper scaffold** (`docs/PAPER/`): `PREREGISTRATION.md` (frozen Phase-2 plan),
+  `RELATED_WORK.md` (lit positioning), `OUTLINE.md` (journal-paper view),
+  `THESIS_STRUCTURE.md` (IMRaD/CS-thesis skeleton + the three-tier mapping + the
+  AI-augmentation treatment).
+
+**Tested:** post-commit hook fired on its own commit (895c1a8) and correctly
+wrote the spine line to `state/commit_log.tsv` — system verified end-to-end.
+
+**Decided (with rationale):**
+- **Skill, not agent**, for the narrative log: a subagent starts cold without the
+  conversation, so only a model-run skill can extract decisions from the chat.
+  Hook handles the automatic trigger; skill handles the reasoning. Run `/worklog`
+  *before* committing so the entry lands in the same commit (no dirty-tree loop).
+- **Pre-registration frozen NOW**, before Phase-2 results — the git timestamp is
+  the credibility. Froze: signal def, asset+macro lists, 1/4/24h horizons,
+  purged+embargoed walk-forward CV (embargo = 24h), the era+trailing-vol-quintile
+  null, **BH-FDR q=0.10** (primary) + Romano-Wolf (robustness) multiple-testing
+  correction, and the OOS tradeable-edge rule (net-of-cost Sharpe CI lower bound
+  > 0 on the final-20%-by-time holdout).
+- **Phase 0 = exploratory, Phase 2 = confirmatory.** Advisor flagged that the
+  WORKLOG itself documents specification search (the `liberation day` keyword was
+  added after seeing Apr 2; `market_directive` after the user pointed at Apr 9),
+  so the event-study results must be labelled hypothesis-generating, not confirmed.
+- **Authorship honesty:** an AI cannot be a named author (arXiv/ICMJE/Nature/
+  Science policy); humans author, AI assistance is disclosed in methods/ack.
+  Told the user up front rather than at submission.
+- **Three tiers as a layered superset**, not three documents: bachelor's
+  (single-asset, standard methods — ~in hand post-Phase-2), master's (full ML
+  pipeline + multi-asset + timing control + purged CV + FDR + tradeable-edge —
+  the realistic target), PhD (full program + AI-methodology contribution +
+  breadth — aspirational; the single 1–4h vol finding is NOT PhD-sized, said so).
+- **AI-augmentation = capability augmentation, not autonomous science.** The
+  WORKLOG's human-direction-vs-AI-execution division of labour is the *evidence
+  base* for that claim. Finance result → q-fin/SSRN; AI-augmentation story → an
+  AI/meta-science venue; they coexist as a reflective thesis chapter.
+
+**Dead-ends / caveats:** "first rigorous study" claim **killed** by a targeted
+SSRN/arXiv search — **David Krause** has several Trump-and-crypto event-study
+working papers. Repositioned our niche as the differentiators Krause lacks:
+intraday (1–4h) resolution, systematic full-corpus ML classification (vs hand-
+curated events), volatility + the clustering caveat, and the endogenous-timing
+control. The advisor also downgraded the "validation gate" to a build-consistency
+smoke test (near-tautological — the directive class was built to catch Apr 9), so
+it must not be cited as evidence of predictive skill.
+
+**Next:** finish the in-flight local FinBERT/embeddings run → LLM hard-case layer
+→ merge → the (smoke-test) validation gate → execute the pre-registered Phase 2.
+Open author decisions noted in `THESIS_STRUCTURE.md` (primary tier, AI-chapter
+placement, venue, byline).
