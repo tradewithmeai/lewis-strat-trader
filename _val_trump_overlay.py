@@ -34,7 +34,7 @@ import pandas as pd
 from local_system.signals.live_rollup import load_history_hybrid
 from local_system.signals.trump_overlay import add_overlay, VOL_WINDOW_H
 from local_system.backtester import run_backtest
-from local_system.strategies.registry import build_strategy
+from local_system.strategies.registry import get_strategy
 
 STRATEGY_NAME = "breakout"
 STRATEGY_PARAMS = {"entry": 40, "exit": 20, "stop_loss_pct": 8.0}
@@ -72,7 +72,7 @@ def _run(bars_1h: pd.DataFrame, overlay: bool, perm_mask: "pd.Series | None" = N
         ef = b["trump_vol_active"]
     if perm_mask is not None:
         ef = perm_mask
-    s = build_strategy(STRATEGY_NAME, STRATEGY_PARAMS)
+    s = get_strategy(STRATEGY_NAME, STRATEGY_PARAMS)
     # backtester expects 1m bars but we're feeding 1h — resample so it doesn't
     # complain about bar count; strategy is hourly so 1h is the right grain
     # (we pass directly; run_backtest resamples 1m->1h internally only if
@@ -123,12 +123,8 @@ def main() -> None:
     n_pos = sum(1 for r in results if r["delta"] > 0)
     n = len(results)
     # sign-test p-value (two-sided)
-    from scipy.stats import binom_test
-    try:
-        p_sign = binom_test(n_pos, n, 0.5)
-    except AttributeError:
-        from scipy.stats import binomtest
-        p_sign = binomtest(n_pos, n, 0.5).pvalue
+    from scipy.stats import binomtest
+    p_sign = binomtest(n_pos, n, 0.5).pvalue
 
     emit(f"\nOverlay improves Sharpe in {n_pos}/{n} windows  (sign-test p={p_sign:.3f})")
     emit(f"Mean delta Sharpe: {np.mean([r['delta'] for r in results]):+.3f}  "

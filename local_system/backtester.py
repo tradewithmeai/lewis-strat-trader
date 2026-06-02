@@ -230,8 +230,9 @@ def run_backtest(
             sig = 0
 
         # ── Enter ─────────────────────────────────────────────────────────────
-        # entry_filter suppresses new entries (existing positions held normally)
-        if _filter_arr is not None and _filter_arr[i]:
+        # entry_filter suppresses new entries only (existing positions are held
+        # normally — the filter must not override in-position hold signals).
+        if position == 0 and _filter_arr is not None and _filter_arr[i]:
             sig = 0
         if position == 0:
             if sig == 1:
