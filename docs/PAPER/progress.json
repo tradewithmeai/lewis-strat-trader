@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-03",
+  "updated": "2026-06-04",
   "note": "Progress across the three rigor tiers (see THESIS_STRUCTURE.md / ROADMAP.md). status: done | active | todo. Updated nightly by the /signoff routine. Drives the Research Progress view in dashboard.py.",
   "tiers": {
     "undergrad": {

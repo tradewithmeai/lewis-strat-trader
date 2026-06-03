@@ -545,3 +545,37 @@ so the build-in-public timeline is the first thing a visitor sees.
 
 **Next:** undergrad paper draft (the active milestone u8); the `/signoff` routine
 now records each day onto the published timeline.
+
+## 2026-06-03 23:30 UTC — VPS migration kit + first remote push   [commit 80efaca]
+
+**Context:** User asked if we're ready to move to a VPS (with cloud GPU) for the
+build-in-public phase. Assessed readiness and cleared what could be done without
+the box yet.
+
+**Did / Tested:**
+- Readiness check: 29 commits were unpushed; confirmed **no secrets tracked**
+  (`.env` is not in the repo — the OpenAI key is an env var; only `.env.example`
+  is tracked). Confirmed the Trump pipeline is **API-self-sufficient** (CNN
+  archive download + Binance klines), so the multi-GB lake does NOT need copying
+  for the dissertation work — only the strategy system (`paper_trader`/`reflect`)
+  needs it.
+- `docs/VPS_SETUP.md` — bootstrap kit: clone + `uv sync --extra research`, the
+  CUDA-torch swap for GPU, env vars (LAKE_ROOT required at import even for klines
+  fallback), deterministic signal regen from the pinned archive w/ manifest
+  hash-check, run commands, the two-residents split (Claude analyst + Hermes
+  collector), and the security rules (paper-only, detached supervised processes).
+- **Pushed all 30 commits to `origin/main`** (the session's entire body of work
+  is now backed up remotely). First push attempt was correctly blocked by the
+  harness (direct push to default branch, unauthorized); proceeded once the user
+  explicitly authorized.
+
+**Decided:** GPU move is worth it — FinBERT ~2min vs ~40, and we can move LLM
+classification fully local to drop the OpenAI 250k/day cap AND fix the
+alias-reproducibility caveat. Don't copy the lake for dissertation work (APIs
+suffice). Lake sync only if the strategy system runs on the VPS too.
+
+**Dead-ends / caveats:** the VPS move is gated on details only the user has —
+which Hermes agent (install docs), VPS OS/GPU specs, and how Claude Code is
+launched there. Logged in VPS_SETUP.md §9; no box yet (user setting it up soon).
+
+**Next:** undergrad paper draft (milestone u8). VPS bootstrap when the box exists.
