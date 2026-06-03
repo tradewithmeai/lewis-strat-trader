@@ -103,3 +103,68 @@ three independent confirmations.
 Pinned data snapshot (`state/signals/trump_archive.meta.json`); fixed RNG seed
 (42); frozen model versions (ProsusAI/finbert, all-MiniLM-L6-v2,
 gpt-4.1-mini); all code committed. The full method trail is in `docs/WORKLOG.md`.
+
+---
+
+# AMENDMENT 1 — 2026-06-03 (post methodology-review, pre signal-dependent results)
+
+Sections 1–8 above remain frozen as the original pre-commitment (its git
+timestamp is the evidence). This amendment records changes made AFTER a 14-agent
+adversarial methodology review (`METHODOLOGY_REVIEW.md`, 14 high-severity issues)
+and the advisor's triage, but BEFORE the signal-dependent confirmatory results
+(RQ2/RQ3) were computed. The vol-only RQ1 keystone (which needs no LLM signal)
+was run as part of this amendment and is reported below.
+
+## A1.1 Reframing: exploratory/observational, not strong-confirmatory
+The study is relabelled **exploratory / observational with adversarial
+robustness**, not strong-confirmatory. Rationale (data ceilings no method can
+fix): a single dominant regime (2025–26 tariff war), n=2 in the directive class,
+and BTC/ETH/SOL co-movement ≈0.92. The originally-implied temporal firewall
+(refine pre-2025 → confirm post-2025) is **dropped**: the signal is concentrated
+in 2025–26, so the split starves both sides and would manufacture rigor the data
+cannot bear. The final-20%-by-time OOS holdout is retained for **RQ3 only**.
+
+## A1.2 Inference (primary vs corroborating)
+- **Primary inference = cluster-robust (day-clustered) OLS** with the
+  trailing-vol control. It correctly handles within-day correlation and the
+  endogenous-timing confound parametrically.
+- **Corroborating = two bootstrap nulls:** the vol-quintile-matched i.i.d. null
+  AND the new day-clustered null (`null_distribution_dayblock`). Report a
+  **balance table** (event vs pool trailing-vol mean + p90) with every vol claim.
+- Honesty note: the day-block null came back *more* significant than the i.i.d.
+  one because it relaxes vol-matching (era+clustering only) — so it is reported
+  as corroboration, NOT cited as "the conservative number". Effects must hold
+  across all three to count.
+
+## A1.3 RQ1 keystone result (run under this amendment)
+The 1–4h forward-vol effect SURVIVES all three specs (BTC): vol_4h full-sample
++5.2bp, regression p=0.007, i.i.d.-null p=0.010, day-block-null p=0.005; 2025+
+p=0.015/0.005/0.000. The 24h effect is volatility clustering (dies under all).
+Trailing vol is balanced (event 223bp ≈ pool 225bp). RQ1 is treated as a real,
+robust effect; RQ2/RQ3 expected null.
+
+## A1.4 Adopted fixes (from the review)
+1. **FinBERT-only robustness signal** for RQ2/RQ3 — defends against the
+   gpt-4.1-mini training-corpus leak (its weights may encode how famous posts
+   played out). FinBERT predates the events; any RQ2/RQ3 result must also be
+   shown under a FinBERT-only signal.
+2. **Freeze + hash the label set** at the declared coverage (target 100% of
+   market-relevant non-noise) BEFORE any signal-dependent result; pin the dated
+   LLM snapshot and persist a run manifest (model version, params). The signal
+   seam (which posts are LLM- vs FinBERT-labelled) must not be build-date-dependent.
+3. **Do not blend constructs:** report the LLM market-impact stance and the
+   FinBERT tone as SEPARATE covariates, not one `signal` column, for RQ2.
+4. **Placebo-actor control** (top addition): run the identical burst pipeline on
+   a non-Trump high-salience feed and/or scrambled event timestamps, to separate
+   "Trump's text carries vol-relevant info" from "any salient poster correlates
+   with crypto vol".
+5. **Co-movement:** BTC is the primary asset; ETH/SOL are r≈0.92 robustness, NOT
+   independent confirmations. Avoid "3/3 assets" replication language.
+6. **RQ3:** keep the pre-registered sign(signal) every-burst rule for
+   completeness, but the **primary RQ3 cell is directive/high-conviction-gated,
+   single asset (BTC)**; report any multi-cell family with FWER control.
+
+## A1.5 Acknowledged ceilings (reported as limitations, not engineered around)
+Single-regime dominance; n=2 directive class (case study, not inference);
+BTC/ETH/SOL ≈ one factor; engagement not known at post time (excluded from
+predictors). These bound external validity and are stated plainly in the paper.
