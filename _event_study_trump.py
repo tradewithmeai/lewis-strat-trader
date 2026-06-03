@@ -168,6 +168,58 @@ def null_distribution(
     return {c: np.array(v) for c, v in draws.items()}
 
 
+def null_distribution_dayblock(
+    bars: pd.DataFrame, event_hours: pd.DatetimeIndex, stat_cols: list[str]
+) -> dict[str, np.ndarray]:
+    """Day-CLUSTERED null (addresses the anti-conservative i.i.d. critique).
+
+    The event sample's hours are clustered within ~D calendar days (bursts on the
+    same day are correlated), so the effective sample size is D, not n_event. An
+    i.i.d. null draw of n_event independent hours understates variance and is
+    anti-conservative. Here each draw reproduces the event's day structure: for
+    each event day (with c_d event hours on it) we draw a substitute eligible day
+    and take c_d hours from it, so a null draw is n_event hours clustered in D
+    day-blocks — matching the real clustering. Era-matched; the trailing-vol
+    confound is handled by the separate vol-quintile null + the regression
+    control, so this null relaxes to era + day-clustering."""
+    tainted = pd.DatetimeIndex(
+        np.unique(np.concatenate([(event_hours + pd.Timedelta(hours=h)).values for h in range(25)]))
+    )
+    pool = bars.dropna(subset=stat_cols + ["trail_vol_24"])
+    pool = pool[(pool.index >= event_hours.min()) & (pool.index <= event_hours.max())]
+    pool = pool[~pool.index.isin(tainted)]
+    pool_days = {d: g for d, g in pool.groupby(pool.index.normalize())}
+    day_keys = list(pool_days.keys())
+    if not day_keys:
+        return {c: np.array([np.nan]) for c in stat_cols}
+
+    # event day structure: how many event hours fall on each distinct event day
+    ev_day_counts = pd.Series(event_hours).groupby(event_hours.normalize()).size().tolist()
+
+    draws: dict[str, list[float]] = {c: [] for c in stat_cols}
+    for _ in range(N_BOOT):
+        chunks = []
+        chosen = RNG.choice(len(day_keys), size=len(ev_day_counts), replace=True)
+        for di, c in zip(chosen, ev_day_counts):
+            g = pool_days[day_keys[di]]
+            idx = RNG.choice(len(g), size=c, replace=True)
+            chunks.append(g.iloc[idx])
+        sample = pd.concat(chunks)
+        for col in stat_cols:
+            draws[col].append(sample[col].mean())
+    return {c: np.array(v) for c, v in draws.items()}
+
+
+def vol_balance(bars: pd.DataFrame, event_hours: pd.DatetimeIndex) -> str:
+    """Balance check: trailing-vol of event hours vs the eligible era pool."""
+    pool = bars.dropna(subset=["trail_vol_24"])
+    pool = pool[(pool.index >= event_hours.min()) & (pool.index <= event_hours.max())]
+    ev = pool.reindex(event_hours).dropna(subset=["trail_vol_24"])
+    e, p = ev["trail_vol_24"], pool["trail_vol_24"]
+    return (f"event trail_vol_24: mean={e.mean() * 1e4:.0f}bp p90={e.quantile(.9) * 1e4:.0f}bp | "
+            f"pool: mean={p.mean() * 1e4:.0f}bp p90={p.quantile(.9) * 1e4:.0f}bp")
+
+
 def pct_rank(null: np.ndarray, obs: float) -> float:
     """Two-sided bootstrap p-value of obs against null draws."""
     p_hi = (null >= obs).mean()
@@ -200,16 +252,21 @@ def study_asset(symbol: str, bursts: pd.DataFrame) -> None:
         if len(sub) < 30:
             emit(f"\n### {name}: only {len(sub)} events — skipped")
             continue
-        null = null_distribution(bars, pd.DatetimeIndex(sub.hour), stat_cols)
-        emit(f"\n### {name}  (n={len(sub)} bursts)")
-        emit("| stat | event mean | null mean | p (2-sided) |")
-        emit("|---|---|---|---|")
+        ev_hours = pd.DatetimeIndex(sub.hour)
+        null = null_distribution(bars, ev_hours, stat_cols)          # vol-quintile-matched (i.i.d.)
+        null_db = null_distribution_dayblock(bars, ev_hours, stat_cols)  # day-clustered
+        ndays = sub.hour.dt.normalize().nunique()
+        emit(f"\n### {name}  (n={len(sub)} bursts across {ndays} days)")
+        emit(f"_{vol_balance(bars, ev_hours)}_")
+        emit("| stat | event mean | null mean | p (vol-matched iid) | p (day-block) |")
+        emit("|---|---|---|---|---|")
         for c in stat_cols:
             obs = sub[c].mean()
             p = pct_rank(null[c], obs)
-            flag = " **" if p < 0.05 else ""
+            p_db = pct_rank(null_db[c], obs)
+            flag = " **" if (p < 0.05 and p_db < 0.05) else (" *" if p_db < 0.05 else "")
             emit(f"| {c} | {obs * 1e4:+.1f} bp | {null[c].mean() * 1e4:+.1f} bp | "
-                 f"{p:.3f}{flag} |")
+                 f"{p:.3f} | {p_db:.3f}{flag} |")
 
     # discriminating vol test: fwd_vol ~ event + trailing vol + hod, all bars.
     # If the event dummy survives the trailing-vol control, posts carry vol

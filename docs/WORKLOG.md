@@ -360,3 +360,60 @@ methodology review.
 **Next:** methodology review + deepened literature review via an agent fan-out
 (the advisor-recommended pre-confirmatory review, parallelised); LLM layer
 finishes after UTC midnight → ≥95% coverage → `--confirm`.
+
+## 2026-06-03 — Agent fan-out review + KEYSTONE: vol effect survives day-block null   [commit pending]
+
+**Context:** User said "fan out agents" (ultracode on). Ran a single-phase
+14-agent fan-out (8 literature librarians + 6 methodology critics) to deepen the
+related-work and adversarially audit the pre-registered Phase 2 before the
+confirmatory run. Then acted on the most consequential critique.
+
+**Did / Tested:**
+- **Fan-out** (`paper-lit-and-method-review`, 14 agents, 252 tool calls, 704k
+  subagent tokens, ~16min): harvested **65 verified citations** (8 slices →
+  `RELATED_WORK_VERIFIED.md`) and **27 methodology issues (14 high, 13 medium)**
+  → `METHODOLOGY_REVIEW.md`. Raw result preserved at
+  `state/signals/_fanout_review_raw.json`. Kept it a single-phase fan-out + commit
+  immediately (no multi-phase mega-workflow) per the usage-limit lesson.
+- **Advisor triage:** the decisive critique was that the i.i.d. bootstrap null is
+  anti-conservative (understates variance) — which threatens RQ1, the *only*
+  positive finding. The advisor said: test RQ1 under a **day-block-resampled
+  null** first (it needs nothing — no LLM signal, no 95% coverage); it tells us
+  which paper we're writing. Don't fix all 14 (tightening a null changes nothing
+  for the already-null RQ2/RQ3); single regime + n=2 + 0.92 co-move are data
+  ceilings, not bugs. Drop the strong "confirmatory" claim → exploratory/
+  observational (dissolves the temporal-firewall dilemma).
+- **Implemented** `null_distribution_dayblock` (reproduces the event's calendar-
+  day cluster structure: D substitute days × c_d hours each) + a `vol_balance`
+  table, in `_event_study_trump.py`. Re-ran RQ1 on BTC.
+
+**Result — KEYSTONE (the headline survives):** the 1–4h forward-vol effect is
+significant under THREE independent specs:
+  - vol-quintile-matched i.i.d. null: vol_1h p=0.018, vol_4h p=0.010 (full)
+  - day-clustered null: vol_1h **p=0.001**, vol_4h **p=0.005** (full); 2025+ p=0.000
+  - cluster-robust regression w/ trailing-vol control: vol_4h +5.2bp p=0.007 (full),
+    +6.3bp p=0.015 (2025+)
+  The **balance table refutes endogenous timing**: event-hour trail_vol_24
+  mean=223bp ≈ pool 225bp — he isn't just posting into already-high vol, yet
+  forward vol rises. 24h effect stays dead (clustering). So: **a modest, robust
+  1–4h volatility effect; no directional edge (RQ2/RQ3 null)** is the defensible
+  spine — we have a (careful, honest) paper.
+
+**Decided:** RQ1 is real and robust → proceed. Reframe the study as
+exploratory/observational (not strong-confirmatory) — honest given the data
+ceilings, and it dissolves the temporal-firewall problem. Adopt the cheap/
+high-leverage fixes (FinBERT-only robustness signal vs the LLM-training-leak;
+freeze+hash the label set; pin the LLM snapshot; **placebo-actor** control as the
+top addition). Frame FWER/co-movement-collapse/RQ3-gating honestly as
+pre-registered choices rather than engineering rigor onto an expected null.
+
+**Dead-ends / caveats:** the day-block null came back *more* significant than the
+i.i.d. one — because it relaxes vol-matching (era+clustering only) while the i.i.d.
+null is vol-stratum-matched; they differ on two axes. So the **cluster-robust
+regression is the primary inference** (properly handles clustering AND the
+trailing-vol control); the two nulls corroborate. Reported transparently — do not
+cite the day-block p=0.001 as "the conservative number".
+
+**Next:** by-hand dated AMENDMENT to `PREREGISTRATION.md` (keep original frozen):
+exploratory reframing + the adopted fixes. Then FinBERT-only robustness rerun +
+placebo-actor design. LLM layer finishes after UTC midnight.
