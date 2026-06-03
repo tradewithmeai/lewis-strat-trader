@@ -55,6 +55,14 @@ def load_comparison() -> dict:
     return json.loads(p.read_text())
 
 
+@st.cache_data(ttl=30)
+def load_progress() -> dict:
+    p = ROOT / "docs" / "PAPER" / "progress.json"
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 @st.cache_data(ttl=300)
 def load_bars_cached(symbol: str, start: date, end: date) -> pd.DataFrame:
     os.environ["LAKE_ROOT"] = LAKE_ROOT
@@ -132,7 +140,7 @@ st.sidebar.title("Strategy Dashboard")
 
 tab_choice = st.sidebar.radio(
     "View",
-    ["Traffic Light", "Equity Curves", "Walk-forward Folds", "Trade Log"],
+    ["Research Progress", "Traffic Light", "Equity Curves", "Walk-forward Folds", "Trade Log"],
     index=0,
 )
 
@@ -166,7 +174,75 @@ st.sidebar.caption(f"LAKE_ROOT: `{LAKE_ROOT}`")
 
 # ── Tab: Traffic Light ────────────────────────────────────────────────────────
 
-if tab_choice == "Traffic Light":
+if tab_choice == "Research Progress":
+    st.title("Research Progress — Undergrad → Master's → PhD")
+    prog = load_progress()
+    if not prog:
+        st.warning("docs/PAPER/progress.json not found.")
+    else:
+        TIER_ORDER = ["undergrad", "masters", "phd"]
+        TIER_COLOUR = {"undergrad": "#1f77b4", "masters": "#9467bd", "phd": "#2ca02c"}
+        STATUS_W = {"done": 1.0, "active": 0.5, "todo": 0.0}
+        tiers = prog.get("tiers", {})
+        st.caption(f"Last updated: {prog.get('updated', '?')} · updated nightly by the /signoff routine")
+
+        # ── per-tier completion bars ─────────────────────────────────────────
+        pct = {}
+        for t in TIER_ORDER:
+            ms = tiers.get(t, {}).get("milestones", [])
+            pct[t] = (sum(STATUS_W.get(m["status"], 0) for m in ms) / len(ms) * 100) if ms else 0
+        fig = go.Figure()
+        for t in TIER_ORDER:
+            fig.add_trace(go.Bar(
+                y=[tiers.get(t, {}).get("title", t)], x=[pct[t]], orientation="h",
+                marker_color=TIER_COLOUR[t], text=f"{pct[t]:.0f}%", textposition="auto",
+                hovertemplate=f"{pct[t]:.0f}%<extra></extra>",
+            ))
+        fig.update_layout(
+            title="Tier completion (done=1, active=0.5)", xaxis_range=[0, 100],
+            xaxis_title="% complete", showlegend=False, height=240,
+            margin=dict(l=10, r=10, t=40, b=10),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ── cumulative milestones completed over time ────────────────────────
+        rows = []
+        for t in TIER_ORDER:
+            for m in tiers.get(t, {}).get("milestones", []):
+                if m["status"] == "done" and m.get("date"):
+                    rows.append({"tier": t, "date": m["date"]})
+        if rows:
+            tl = pd.DataFrame(rows)
+            tl["date"] = pd.to_datetime(tl["date"])
+            figc = go.Figure()
+            for t in TIER_ORDER:
+                sub = tl[tl.tier == t].sort_values("date")
+                if len(sub):
+                    cum = sub.groupby("date").size().cumsum()
+                    figc.add_trace(go.Scatter(
+                        x=cum.index, y=cum.values, mode="lines+markers", name=t,
+                        line=dict(color=TIER_COLOUR[t], shape="hv"),
+                    ))
+            figc.update_layout(
+                title="Milestones completed over time", height=300,
+                xaxis_title="date", yaxis_title="cumulative milestones",
+                margin=dict(l=10, r=10, t=40, b=10),
+            )
+            st.plotly_chart(figc, use_container_width=True)
+
+        # ── milestone tables per tier ────────────────────────────────────────
+        ICON = {"done": "✅", "active": "🟡", "todo": "⬜"}
+        for t in TIER_ORDER:
+            tier = tiers.get(t, {})
+            st.subheader(f"{tier.get('title', t)} — {pct[t]:.0f}%")
+            tbl = pd.DataFrame([
+                {"": ICON.get(m["status"], "?"), "Milestone": m["name"],
+                 "Done": m.get("date") or ""}
+                for m in tier.get("milestones", [])
+            ])
+            st.dataframe(tbl, use_container_width=True, hide_index=True)
+
+elif tab_choice == "Traffic Light":
     st.title("Traffic Light — Challenger Scores")
     comp = load_comparison()
 

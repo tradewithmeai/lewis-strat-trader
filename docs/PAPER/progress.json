@@ -1,0 +1,40 @@
+{
+  "updated": "2026-06-03",
+  "note": "Progress across the three rigor tiers (see THESIS_STRUCTURE.md / ROADMAP.md). status: done | active | todo. Updated nightly by the /signoff routine. Drives the Research Progress view in dashboard.py.",
+  "tiers": {
+    "undergrad": {
+      "title": "Undergraduate — finance paper",
+      "milestones": [
+        {"id": "u1", "name": "Data ingest: Trump Truth Social archive (33,712 posts, pinned)", "status": "done", "date": "2026-06-02"},
+        {"id": "u2", "name": "Signal pipeline: FinBERT + embeddings + novelty + LLM stance (frozen + hashed, 100% coverage)", "status": "done", "date": "2026-06-03"},
+        {"id": "u3", "name": "Event study RQ1: 1-4h volatility effect", "status": "done", "date": "2026-06-02"},
+        {"id": "u4", "name": "Adversarial robustness: day-block null, balance table, content placebo", "status": "done", "date": "2026-06-03"},
+        {"id": "u5", "name": "Phase 2 RQ2/RQ3: directional null (incl. FinBERT-only robustness)", "status": "done", "date": "2026-06-03"},
+        {"id": "u6", "name": "Pre-registration + 14-agent methodology review + Amendment 1", "status": "done", "date": "2026-06-03"},
+        {"id": "u7", "name": "Related work: 65 verified citations, novelty positioning", "status": "done", "date": "2026-06-03"},
+        {"id": "u8", "name": "Paper draft (IMRaD): intro, data, method, results, case study, discussion", "status": "active", "date": null},
+        {"id": "u9", "name": "Public submission (arXiv q-fin / SSRN)", "status": "todo", "date": null}
+      ]
+    },
+    "masters": {
+      "title": "Master's — AI-augmented research paper",
+      "milestones": [
+        {"id": "m1", "name": "Worklog evidence base (human-direction vs AI-execution record)", "status": "active", "date": "2026-06-02"},
+        {"id": "m2", "name": "Quantify the division of labour from the worklog + commit log", "status": "todo", "date": null},
+        {"id": "m3", "name": "AI-augmentation methodology writeup (the 'boost' case study)", "status": "todo", "date": null},
+        {"id": "m4", "name": "Submission (AI / meta-science venue)", "status": "todo", "date": null}
+      ]
+    },
+    "phd": {
+      "title": "PhD — unified thesis (finance + AI methodology)",
+      "milestones": [
+        {"id": "p1", "name": "Different-actor placebo (breadth beyond the content placebo)", "status": "todo", "date": null},
+        {"id": "p2", "name": "Phase 3: directive-timing model (needs grown n via 24/7 collection)", "status": "todo", "date": null},
+        {"id": "p3", "name": "Volatility-instrument monetization test (Deribit options / variance)", "status": "todo", "date": null},
+        {"id": "p4", "name": "Cross-regime / additional assets / external validity", "status": "todo", "date": null},
+        {"id": "p5", "name": "Unified thesis writeup (5-9 chapters)", "status": "todo", "date": null},
+        {"id": "p6", "name": "Submission / defense", "status": "todo", "date": null}
+      ]
+    }
+  }
+}

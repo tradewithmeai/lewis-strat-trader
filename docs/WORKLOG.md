@@ -517,3 +517,31 @@ stated as a limitation rather than forced.
 **Next:** draft the undergrad finance paper — RQ1 (vol effect, robust + placebo-
 confirmed content-specific) + RQ2/RQ3 (null, incl. FinBERT-only) + directive
 n=2 case study.
+
+## 2026-06-03 02:00 UTC — Progress tracker + dashboard view + nightly sign-off routine   [commit pending]
+
+**Context:** User reframed toward a build-in-public dissertation: each night at
+sign-off, update the day's progress and plot it along an undergrad → master's →
+PhD timeline, published in the web UI. (Bigger vision — public UI for crowd-
+sourced strategy tests, a faceless crypto-numbers video service via their social
+studio, VPS+GPU deploy with an autonomous collector agent — acknowledged but
+deliberately deferred; dissertation first.)
+
+**Did:**
+- `docs/PAPER/progress.json` — three-tier milestone model (status done/active/todo
+  + dates), accurate to reality: **undergrad 83%** (7/9 done — analysis complete,
+  only draft + submission left), master's 12%, phd 0%.
+- `dashboard.py` — new **Research Progress** view (first tab): per-tier completion
+  bars, cumulative-milestones-over-time line, and per-tier milestone tables.
+  Syntax-checked; progress.json drives it.
+- `.claude/skills/signoff/SKILL.md` — `/signoff` nightly routine: runs the
+  worklog narrative, refreshes the progress tracker (conservative — `done` only
+  when committed+verified), commits, prints an end-of-day summary (tier %s + the
+  one thing queued next). Composes with `/worklog`.
+
+**Decided:** keep the progress tracker honest/conservative (it's published —
+understating beats overstating); make Research Progress the default dashboard tab
+so the build-in-public timeline is the first thing a visitor sees.
+
+**Next:** undergrad paper draft (the active milestone u8); the `/signoff` routine
+now records each day onto the published timeline.
