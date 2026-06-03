@@ -79,10 +79,19 @@ def emit(line: str = "") -> None:
 
 
 # ---------------------------------------------------------------- events
-def load_bursts() -> pd.DataFrame:
-    """Market-relevant, non-noise posts collapsed to burst level."""
+def load_bursts(placebo: bool = False) -> pd.DataFrame:
+    """Collapse posts to burst level.
+
+    placebo=False: market-relevant, non-noise posts (the treatment).
+    placebo=True:  NON-market-relevant, non-noise posts (the content placebo —
+                   Trump's substantive political/other posts that should not
+                   carry crypto-market information). Run through the identical
+                   pipeline, this isolates whether the vol effect is about the
+                   market CONTENT or merely about Trump posting / time-of-day.
+    """
     ev = pd.read_parquet(EVENTS_PATH)
-    rel = ev[ev.market_relevant & ~ev.is_noise].copy()
+    mask = (~ev.market_relevant if placebo else ev.market_relevant) & ~ev.is_noise
+    rel = ev[mask].copy()
     agg = {c: "max" for c in TOPIC_COLS}
     agg |= {"ts": "min", "sentiment": "mean", "engagement": "max"}
     bursts = rel.groupby("burst_id").agg(agg).reset_index()
@@ -298,12 +307,18 @@ def study_asset(symbol: str, bursts: pd.DataFrame) -> None:
     emit("\n### Regressions (day-clustered SEs)")
     for k in HORIZONS:
         sub = joined.dropna(subset=[f"fwd_ret_{k}", "sentiment", "engagement"])
-        X = sm.add_constant(
-            sub[["sentiment", "engagement"] + TOPIC_COLS].astype(float)
-        )
-        m = sm.OLS(sub[f"fwd_ret_{k}"].astype(float), X).fit(
-            cov_type="cluster", cov_kwds={"groups": sub.ts.dt.date}
-        )
+        feats = sub[["sentiment", "engagement"] + TOPIC_COLS].astype(float)
+        # drop zero-variance columns (placebo non-market bursts leave topic
+        # dummies all-False -> singular matrix)
+        feats = feats.loc[:, feats.std() > 0]
+        X = sm.add_constant(feats)
+        try:
+            m = sm.OLS(sub[f"fwd_ret_{k}"].astype(float), X).fit(
+                cov_type="cluster", cov_kwds={"groups": sub.ts.dt.date}
+            )
+        except Exception as exc:  # noqa: BLE001
+            emit(f"- fwd_ret_{k}h: regression skipped ({exc})")
+            continue
         sig = m.pvalues[m.pvalues < 0.05].drop("const", errors="ignore")
         emit(f"- fwd_ret_{k}h: R2={m.rsquared:.3f}, n={int(m.nobs)}; "
              + ("significant terms: "
@@ -351,15 +366,27 @@ def study_macro(bursts: pd.DataFrame) -> None:
 # ---------------------------------------------------------------- main
 def main() -> None:
     assets = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    placebo = "--placebo" in sys.argv
     for a in sys.argv[1:]:
         if a.startswith("--assets"):
             assets = a.split("=", 1)[1].split(",")
 
-    bursts = load_bursts()
-    emit("# Trump Truth Social event study")
-    emit(f"\nPinned archive events: see state/signals/trump_archive.meta.json")
-    emit(f"Market-relevant non-noise bursts: {len(bursts)} "
-         f"({bursts.ts.min():%Y-%m-%d} -> {bursts.ts.max():%Y-%m-%d})")
+    bursts = load_bursts(placebo=placebo)
+    out_md = "docs/PAPER/PLACEBO_RESULTS.md" if placebo else OUT_MD
+    if placebo:
+        emit("# Placebo (content control): NON-market-relevant Trump posts")
+        emit("\nIdentical pipeline to the main event study, but on Trump's "
+             "non-market-relevant, non-noise posts (political/other content that "
+             "should NOT carry crypto-market information). If the 1-4h vol effect "
+             "is about market CONTENT (not just 'Trump posted' or time-of-day), it "
+             "should be ABSENT here. Compare against docs/TRUMP_EVENT_STUDY.md.")
+        emit(f"\nPlacebo (non-market) non-noise bursts: {len(bursts)} "
+             f"({bursts.ts.min():%Y-%m-%d} -> {bursts.ts.max():%Y-%m-%d})")
+    else:
+        emit("# Trump Truth Social event study")
+        emit("\nPinned archive events: see state/signals/trump_archive.meta.json")
+        emit(f"Market-relevant non-noise bursts: {len(bursts)} "
+             f"({bursts.ts.min():%Y-%m-%d} -> {bursts.ts.max():%Y-%m-%d})")
     emit(f"Horizons: {HORIZONS}h; null draws: {N_BOOT}; split at {SPLIT_AT:%Y-%m-%d} (inauguration)")
 
     for sym in assets:
@@ -368,13 +395,14 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001
             emit(f"\n## {sym}: FAILED ({exc})")
 
-    study_macro(bursts)
+    if not placebo:
+        study_macro(bursts)
 
     from pathlib import Path
 
-    Path(OUT_MD).parent.mkdir(parents=True, exist_ok=True)
-    Path(OUT_MD).write_text(report.getvalue(), encoding="utf-8")
-    print(f"\n[written] {OUT_MD}")
+    Path(out_md).parent.mkdir(parents=True, exist_ok=True)
+    Path(out_md).write_text(report.getvalue(), encoding="utf-8")
+    print(f"\n[written] {out_md}")
 
 
 if __name__ == "__main__":

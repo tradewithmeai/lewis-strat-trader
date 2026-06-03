@@ -482,3 +482,38 @@ robust to it — a pre-registered null with no p-hacking).
 **Next:** placebo-actor experiment (top remaining robustness — separates "Trump's
 text" from "any salient poster"); then draft the undergrad finance paper from
 RQ1 (positive) + RQ2/RQ3 (null) + the directive case study.
+
+## 2026-06-03 01:35 UTC — Content placebo: vol effect is market-content-specific   [commit pending]
+
+**Context:** Run the methodology-review's top addition — a placebo control to
+separate "Trump's market *content* moves vol" from "any Trump post / time-of-day
+coincides with vol".
+
+**Did:** added `load_bursts(placebo=True)` + a `--placebo` mode to
+`_event_study_trump.py` that runs the IDENTICAL vol pipeline on Trump's
+NON-market-relevant non-noise posts (7,232 bursts — 5× the 1,422 treatment, so
+higher power) → `docs/PAPER/PLACEBO_RESULTS.md`. Guarded the topic-dummy
+regression against all-zero columns (placebo leaves them False).
+
+**Result — content-specificity confirmed:** under the primary cluster-robust
+regression, the placebo is NULL on all vol horizons (vol_4h +1.0bp p=0.232 full,
++1.6bp p=0.214 2025+; vol_1h +0.5bp p=0.390) vs treatment (+5.2bp p=0.007 full,
++6.3bp p=0.015 2025+). ~5× effect-size gap. Vol-matched i.i.d. null agrees
+(placebo p=0.30–0.97). Trailing vol balanced (placebo event 224bp ≈ pool 228bp).
+→ the 1–4h vol effect is the market CONTENT, not "Trump posted" or time-of-day.
+
+**Methodological by-catch:** the day-block null flagged placebo vol_1h at
+p=0.014/0.049 on a negligible +0.4bp gap — **the day-block null is
+anti-conservative at large n** (tiny SE over 7,229 bursts). This confirms
+Amendment 1's choice of the **cluster-robust regression as PRIMARY** and demotes
+the day-block null to a sanity check (logged in PLACEBO_RESULTS.md). The placebo
+audited the inference method, not just the finding.
+
+**Dead-ends / caveats:** this is a *content* (within-actor) placebo. A
+*different-actor* placebo needs a clean second high-salience feed (Musk = a
+positive not negative control), none readily available → logged as future work,
+stated as a limitation rather than forced.
+
+**Next:** draft the undergrad finance paper — RQ1 (vol effect, robust + placebo-
+confirmed content-specific) + RQ2/RQ3 (null, incl. FinBERT-only) + directive
+n=2 case study.
