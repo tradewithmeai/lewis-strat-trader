@@ -1,0 +1,25 @@
+{
+  "frozen_at_utc": "2026-06-03T01:05:00Z",
+  "archive_snapshot": {
+    "url": "https://ix.cnn.io/data/truth-social/truth_archive.parquet",
+    "etag": "a036078a85d5bc77a6ed72c654516dcf",
+    "rows": 33712,
+    "pulled_at": "2026-06-02T17:01:30+00:00"
+  },
+  "models": {
+    "finbert": "ProsusAI/finbert",
+    "embeddings": "sentence-transformers/all-MiniLM-L6-v2",
+    "llm_alias": "gpt-4.1-mini",
+    "llm_resolved_snapshot": "gpt-4.1-mini-2025-04-14 (sole gpt-4.1-mini snapshot reachable on this key at run time; system_fingerprint not captured per-call \u2014 full bit-repro would require an explicit-snapshot re-label)",
+    "llm_temperature": 0
+  },
+  "label_set": {
+    "llm_labels": 1851,
+    "market_relevant_nonnoise": 1851,
+    "coverage": "100.0%",
+    "llm_jsonl_sha256": "64275ed87dfd43c02ba9a8326fe43d5f368054c1b1c5e2aa5ff5a87c52e5c7b4",
+    "merged_signal_sha256": "b9f9d17f29e670c010e8fd99a0b708beac880127175fb10cec28bb81bb7f6385"
+  },
+  "rng_seed": 42,
+  "note": "Label set FROZEN. Regenerate signal via trump_signal_local -> trump_signal_llm -> trump_signal merge against the pinned archive snapshot above."
+}
