@@ -417,3 +417,68 @@ cite the day-block p=0.001 as "the conservative number".
 **Next:** by-hand dated AMENDMENT to `PREREGISTRATION.md` (keep original frozen):
 exploratory reframing + the adopted fixes. Then FinBERT-only robustness rerun +
 placebo-actor design. LLM layer finishes after UTC midnight.
+
+## 2026-06-03 01:10 UTC — Pre-reg Amendment 1, LLM layer 100% + frozen, Phase 2 run   [commits 5446391, 4292e24 + pending]
+
+**Context:** Land the amendment, complete + freeze the signal, and run the
+(now-exploratory) Phase 2. (Catch-up entry: 5446391 and 4292e24 were committed
+with only the hook spine; narrated here.)
+
+**Did / Tested:**
+- **Pre-registration Amendment 1** (5446391): original sections 1–8 kept frozen;
+  appended a dated amendment — study relabelled **exploratory/observational**
+  (data ceilings: single regime, n=2 directives, 0.92 co-move; temporal firewall
+  dropped as inapplicable); cluster-robust regression = primary inference, two
+  bootstrap nulls corroborate; adopted fixes listed (FinBERT-only robustness,
+  freeze+hash labels, separate constructs, placebo actor, BTC-primary,
+  directive-gated RQ3); ceilings acknowledged as limitations not engineered around.
+- **LLM layer 100%** (UTC rolled to 2026-06-03 → budget reset): last 211 posts
+  labelled in 31.9k tokens. **All 1,851 market-relevant non-noise posts covered.**
+  Gate PASSES.
+- **Froze + hashed the label set** (4292e24): `docs/PAPER/SIGNAL_MANIFEST.json` —
+  pinned archive etag, the 3 models, SHA-256 of the LLM jsonl
+  (64275ed8…) and merged signal (b9f9d17f…), seed 42. Honest caveat recorded: the
+  `gpt-4.1-mini` alias resolved to the 2025-04-14 snapshot but per-call
+  system_fingerprint was not captured, so bit-identical repro would need an
+  explicit-snapshot re-label.
+- **Phase-2 harness amendment-aligned before the real run:** added `finbert_score`
+  as a SEPARATE OLS covariate (don't-blend fix); RQ3 edge test now runs BOTH the
+  LLM-blended signal AND a **FinBERT-only** signal (LLM-leak robustness), each
+  split by policy/escalation; header relabelled EXPLORATORY. Ran `--confirm` at
+  100% coverage (result in the next entry / `docs/PAPER/PHASE2_RESULTS.md`).
+
+**Decided:** make the harness amendment-compliant BEFORE writing the real results
+file, so PHASE2_RESULTS.md is not the un-amended spec. FinBERT-only RQ3 is the
+cheap, highest-leverage fix (kills the LLM-leak objection for the directional
+claim) — added now rather than deferred.
+
+**Next:** record the Phase-2 result; placebo-actor experiment; begin the undergrad
+finance paper draft.
+
+## 2026-06-03 01:20 UTC — Phase 2 result: RQ2/RQ3 NULL (robust, incl. FinBERT-only)   [commit pending]
+
+**Did / Tested:** ran the exploratory Phase 2 at 100% coverage →
+`docs/PAPER/PHASE2_RESULTS.md`.
+
+**Result:**
+- **RQ2 NULL** — the continuous directional `signal` is insignificant on every
+  asset×horizon (all p>0.4); FinBERT-only signal likewise null.
+- **RQ3 NULL on all 12 cells** (3 assets × {all,policy} × {LLM,FinBERT}): every
+  one loses money net of 0.24% cost (Sharpe −6 to −15). Robust to signal source →
+  NOT an LLM-leak artifact.
+- **8 BH-FDR "survivors" are ALL `topic_market_directive`** = the n=2 directive
+  class (betas +166 to +724bp, p=0.000) — a 2-observation-dummy artifact, reported
+  as the case study, NOT confirmed alpha. Added a hand-written interpretation
+  header to PHASE2_RESULTS.md so it can't be misread as 8 findings.
+- `topic_china` −1h (−8 to −17bp, p~0.02–0.03) present but does NOT survive FDR;
+  reported as a consistency check (tariffs risk-off is known), not novelty.
+
+**Decided:** the paper's empirical spine is now complete and clean — **posts move
+1–4h VOLATILITY (RQ1, robust), not DIRECTION (RQ2/RQ3 null after costs)**; the
+"buy" directives are an n=2 case study. This is the honest, publishable result
+the project's whole methodology was built to reach (and the AI-boost narrative is
+robust to it — a pre-registered null with no p-hacking).
+
+**Next:** placebo-actor experiment (top remaining robustness — separates "Trump's
+text" from "any salient poster"); then draft the undergrad finance paper from
+RQ1 (positive) + RQ2/RQ3 (null) + the directive case study.

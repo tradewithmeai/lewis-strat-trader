@@ -147,7 +147,9 @@ def analyse_asset(symbol: str, bursts: pd.DataFrame) -> list[dict]:
     joined = bursts.merge(bars, left_on="hour", right_index=True, how="inner")
     emit(f"\n### {symbol}  (bursts joined: {len(joined)})")
 
-    feat_cols = ["signal", "novelty_7d"] + TOPIC_COLS + ["trail_vol_24"]
+    # finbert_score enters as a SEPARATE covariate (not blended into signal) —
+    # Amendment 1: LLM market-impact stance and FinBERT tone are distinct constructs.
+    feat_cols = ["signal", "finbert_score", "novelty_7d"] + TOPIC_COLS + ["trail_vol_24"]
     grid: list[dict] = []
     for target in [f"fwd_ret_{k}" for k in HORIZONS] + [f"fwd_vol_{k}" for k in HORIZONS]:
         sub = joined.dropna(subset=[target] + feat_cols)
@@ -167,13 +169,13 @@ def analyse_asset(symbol: str, bursts: pd.DataFrame) -> list[dict]:
     return grid
 
 
-def _edge_stats(oos: pd.DataFrame, symbol: str, label: str) -> dict:
+def _edge_stats(oos: pd.DataFrame, symbol: str, label: str, signal_col: str = "signal") -> dict:
     horizon = "fwd_ret_4"
-    oos = oos.dropna(subset=[horizon, "signal"])
-    oos = oos[oos.signal.abs() > 1e-6]
+    oos = oos.dropna(subset=[horizon, signal_col])
+    oos = oos[oos[signal_col].abs() > 1e-6]
     if len(oos) < 20:
         return {"asset": symbol, "subset": label, "n": len(oos), "verdict": "insufficient OOS events"}
-    gross = np.sign(oos["signal"].values) * oos[horizon].values
+    gross = np.sign(oos[signal_col].values) * oos[horizon].values
     net = gross - ROUND_TRIP_COST
     sharpe = net.mean() / net.std() * np.sqrt(365 * 24 / 4) if net.std() > 0 else 0.0
     lo, hi = block_bootstrap_sharpe_ci(net)
@@ -194,11 +196,16 @@ def oos_trading_edge(symbol: str, bursts: pd.DataFrame) -> list[dict]:
     bars = load_hourly(symbol, bursts.ts.min().date(), date.today())
     joined = bursts.merge(bars, left_on="hour", right_index=True, how="inner").sort_values("ts")
     oos = joined.iloc[int(len(joined) * (1 - OOS_FRAC)):]
-    out = [_edge_stats(oos, symbol, "all")]
-    if "is_policy_signal" in oos:
-        pol = oos["is_policy_signal"].fillna(False).astype(bool)
-        out.append(_edge_stats(oos[pol], symbol, "policy/escalation"))
-        out.append(_edge_stats(oos[~pol], symbol, "commentary"))
+    out = []
+    # Run both the LLM-blended signal AND a FinBERT-only signal (Amendment 1
+    # robustness: FinBERT predates the events, so it is immune to the LLM
+    # training-corpus leak that could let gpt-4.1-mini "know" how famous posts
+    # played out).
+    for col, tag in [("signal", "LLMsig"), ("finbert_score", "FinBERTsig")]:
+        out.append(_edge_stats(oos, symbol, f"all/{tag}", col))
+        if "is_policy_signal" in oos:
+            pol = oos["is_policy_signal"].fillna(False).astype(bool)
+            out.append(_edge_stats(oos[pol], symbol, f"policy/{tag}", col))
     return out
 
 
@@ -225,7 +232,7 @@ def main() -> None:
         sys.exit(3)
 
     bursts = load_bursts()
-    emit("# Phase 2 — reaction modelling " + ("(SMOKE — not confirmatory)" if smoke else "(CONFIRMATORY)"))
+    emit("# Phase 2 — reaction modelling " + ("(SMOKE — not confirmatory)" if smoke else "(EXPLORATORY — per Amendment 1)"))
     emit(f"\nLLM coverage of market-relevant posts: {cov:.1%}")
     emit(f"Bursts: {len(bursts)}  ({bursts.ts.min():%Y-%m-%d} -> {bursts.ts.max():%Y-%m-%d})")
     emit(f"Pre-registration: docs/PAPER/PREREGISTRATION.md | costs {ROUND_TRIP_COST:.2%} RT")
