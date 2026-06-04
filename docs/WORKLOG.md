@@ -670,3 +670,58 @@ nothing posts until the user supplies those.
 
 **Next:** user supplies author/affiliation + disclosure wording + license; then
 OSF pre-reg + Zenodo DOI, then SSRN.
+
+## 2026-06-04 23:13 UTC — Web UI made publicly deployable (build-in-public surface)   [commit pending]
+
+**Context:** User pivoted priority: get the website/web UI up and running now,
+papers stay on file (multiple papers planned — be tactical about content split).
+Keep the existing monitors running + logging, don't disrupt them. "Web UI up
+before we publish."
+
+**Did:**
+- Treated the existing Streamlit `dashboard.py` as the site (per advisor: plain
+  reading; "public Streamlit UI" was already the deferred vision, no new narrative
+  site). Made it dual-mode via `LAKE_AVAILABLE = Path(LAKE_ROOT).is_dir()`:
+  - **public view** (no lake) = Research Progress (hero) + Traffic Light only;
+  - **local** = full 5-tab strategy lab.
+  Hid the three lake-backed tabs (Equity Curves / Walk-forward / Trade Log) in
+  public mode — Equity Curves called `load_bars_cached` *outside* its try and
+  would hard-crash a lakeless host. Added a public-view sidebar note + a landing
+  intro on the Research Progress tab.
+- `requirements.txt` (core deps only, no torch/research) for Streamlit Community
+  Cloud, which installs from it not pyproject. `.streamlit/config.toml` (dark
+  theme). `docs/DEPLOY.md` — Community Cloud steps + human-only actions.
+
+**Tested:**
+- **Import viability (make-or-break):** `local_system.strategies.registry`
+  imports with NO `LAKE_ROOT` and does NOT transitively pull `lake_adapter`
+  (which raises on missing `LAKE_ROOT`). So the landing app loads on a lakeless
+  host; the adapter only raises lazily inside the lake tabs. Public deploy
+  reachable without a registry refactor.
+- **Headless boot (streamlit AppTest, both modes):** public mode →
+  `exception: NONE`, radio = ['Research Progress','Traffic Light'], intro present;
+  local mode → `exception: NONE`, radio = all 5 tabs. (A trailing traceback in the
+  run was the test's own print() choking on the '→' glyph in the cp1252 console,
+  not an app error — at.exception was NONE.)
+- Verified stack: streamlit 1.57.0, plotly 6.7.0, pandas 3.0.3, statsmodels 0.14.6.
+
+**Decided (advisor-guided):**
+- Default host = **Streamlit Community Cloud** (free, public, GitHub-linked — fits
+  build-in-public, no VPS needed). The deploy clicks (account, repo authorise,
+  app name) are human-only; handed off in DEPLOY.md, same pattern as the paper.
+- **Pin render-critical deps** (streamlit==1.57.0 etc.): `use_container_width` is
+  deprecated and slated for removal post-2025-12-31, so an unpinned newer
+  streamlit could break the live app. Pin to the AppTest-passing versions; bump
+  deliberately. (Did NOT migrate the 11 `use_container_width` call sites to
+  `width=` — pinning locks verified behavior with far less edit risk; migration
+  is a known follow-up if/when unpinning.)
+- **Monitors untouched:** paper_trader tick loop / trump_alert / cli.status left
+  exactly as-is; the dashboard only reads their committed output. Read the
+  instruction as "don't disrupt logging," not a new build.
+
+**Dead-ends / caveats:** lake-backed tabs can't be public without a host that has
+the lake synced (VPS path) — out of scope for the free deploy. `state/comparison.json`
+is gitignored, so Traffic Light shows its degraded note on the cloud (expected).
+
+**Next:** user does the Community Cloud deploy clicks → public URL. Then: be
+tactical about how the planned multiple papers split content (parked in memory).

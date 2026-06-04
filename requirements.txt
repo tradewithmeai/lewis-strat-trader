@@ -1,0 +1,22 @@
+# Dependencies for deploying dashboard.py to a public host (e.g. Streamlit
+# Community Cloud), which installs from requirements.txt rather than pyproject.
+# CORE deps only — mirrors [project].dependencies in pyproject.toml. The
+# `research` extra (torch, transformers, sentence-transformers, openai,
+# scikit-learn, lightgbm) is deliberately excluded: the public dashboard reads
+# committed result files and never runs the signal pipeline.
+pyyaml
+numpy
+duckdb
+scipy
+rich
+yfinance
+feedparser>=6.0.12
+vadersentiment>=3.3.2
+# Render-critical deps pinned to the locally verified, AppTest-passing versions.
+# In particular streamlit is pinned: `use_container_width` is deprecated and
+# slated for removal post-2025-12-31, so an unpinned newer streamlit could break
+# the app on the host. Bump deliberately (and re-test) rather than floating.
+streamlit==1.57.0
+plotly==6.7.0
+pandas==3.0.3
+statsmodels==0.14.6

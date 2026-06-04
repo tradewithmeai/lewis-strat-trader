@@ -19,6 +19,12 @@ ROOT = Path(__file__).parent
 STATE_DIR = ROOT / "state"
 LAKE_ROOT = os.environ.get("LAKE_ROOT", "D:/Documents/11Projects/crypto-lake-rs/data/parquet")
 
+# When the price lake is present (local dev) the full strategy lab is shown.
+# On a public host (e.g. Streamlit Community Cloud) the lake is absent, so we
+# fall into a read-only "public view": the research-progress timeline + the
+# challenger traffic-light, which need only files committed to the repo.
+LAKE_AVAILABLE = Path(LAKE_ROOT).is_dir()
+
 st.set_page_config(
     page_title="Strategy Dashboard",
     page_icon="📈",
@@ -138,44 +144,59 @@ def available_strategies() -> list[str]:
 
 st.sidebar.title("Strategy Dashboard")
 
-tab_choice = st.sidebar.radio(
-    "View",
-    ["Research Progress", "Traffic Light", "Equity Curves", "Walk-forward Folds", "Trade Log"],
-    index=0,
-)
+PUBLIC_TABS = ["Research Progress", "Traffic Light"]
+LAKE_TABS = ["Equity Curves", "Walk-forward Folds", "Trade Log"]
+tab_options = PUBLIC_TABS + (LAKE_TABS if LAKE_AVAILABLE else [])
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Settings")
+tab_choice = st.sidebar.radio("View", tab_options, index=0)
 
-end_default = date.today() - timedelta(days=1)
-start_default = end_default - timedelta(days=5 * 365)
+if not LAKE_AVAILABLE:
+    st.sidebar.info(
+        "**Public view.** The live strategy lab — equity curves, walk-forward "
+        "folds and the trade log — runs locally against the price lake. Shown "
+        "here: the research-progress timeline and the challenger traffic-light."
+    )
 
-col1, col2 = st.sidebar.columns(2)
-start_date = col1.date_input("From", value=start_default)
-end_date = col2.date_input("To", value=end_default)
+# Strategy-lab controls only matter when the lake is present.
+if LAKE_AVAILABLE:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Settings")
 
-symbol = st.sidebar.text_input("Symbol", value="BTCUSDT")
+    end_default = date.today() - timedelta(days=1)
+    start_default = end_default - timedelta(days=5 * 365)
 
-strategies = available_strategies()
-selected = st.sidebar.multiselect(
-    "Strategies",
-    options=strategies,
-    default=["regime_bb", "bollinger", "breakout"],
-)
+    col1, col2 = st.sidebar.columns(2)
+    start_date = col1.date_input("From", value=start_default)
+    end_date = col2.date_input("To", value=end_default)
 
-directional = st.sidebar.checkbox(
-    "Directional bias (bull=long-only, bear=short-only)",
-    value=True,
-    help="Applies directional constraint per regime fold. Only affects Walk-forward Folds view.",
-)
+    symbol = st.sidebar.text_input("Symbol", value="BTCUSDT")
 
-st.sidebar.markdown("---")
-st.sidebar.caption(f"LAKE_ROOT: `{LAKE_ROOT}`")
+    strategies = available_strategies()
+    selected = st.sidebar.multiselect(
+        "Strategies",
+        options=strategies,
+        default=["regime_bb", "bollinger", "breakout"],
+    )
+
+    directional = st.sidebar.checkbox(
+        "Directional bias (bull=long-only, bear=short-only)",
+        value=True,
+        help="Applies directional constraint per regime fold. Only affects Walk-forward Folds view.",
+    )
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"LAKE_ROOT: `{LAKE_ROOT}`")
 
 # ── Tab: Traffic Light ────────────────────────────────────────────────────────
 
 if tab_choice == "Research Progress":
     st.title("Research Progress — Undergrad → Master's → PhD")
+    st.markdown(
+        "A build-in-public record of an ongoing research programme: **do a head of "
+        "state's social-media posts move cryptocurrency markets**, and can AI be used "
+        "as a genuine research collaborator along the way? Progress is tracked across "
+        "three rigour tiers and updated as each piece of work lands and is committed."
+    )
     prog = load_progress()
     if not prog:
         st.warning("docs/PAPER/progress.json not found.")
