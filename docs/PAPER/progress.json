@@ -14,7 +14,7 @@
         {"id": "u6", "name": "Pre-registration + 14-agent methodology review + Amendment 1", "status": "done", "date": "2026-06-03"},
         {"id": "u7", "name": "Related work: 65 verified citations, novelty positioning", "status": "done", "date": "2026-06-03"},
         {"id": "u8", "name": "Paper draft (IMRaD): intro, data, method, results, case study, discussion", "status": "done", "date": "2026-06-04"},
-        {"id": "u9", "name": "Public submission (arXiv q-fin / SSRN)", "status": "todo", "date": null}
+        {"id": "u9", "name": "Public submission (arXiv q-fin / SSRN / OSF / Zenodo)", "status": "active", "date": null}
       ]
     },
     "masters": {

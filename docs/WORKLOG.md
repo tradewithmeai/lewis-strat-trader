@@ -633,3 +633,40 @@ are honesty guards, not findings to be strengthened later without more events.
 **Next:** u9 — public submission (arXiv q-fin / SSRN): needs an author/affiliation
 + AI-authorship disclosure decision from the user before posting. Master's tier
 (AI-boost paper, m1/m2) is the next analytical front.
+
+## 2026-06-04 21:12 UTC — Submission package: citable-record route + Overleaf/SSRN artifacts   [commit pending]
+
+**Context:** User's end goal is publishing; immediate target chosen = a public
+*citable record* of the undergraduate paper. No local LaTeX/pandoc on the box.
+
+**Did:**
+- Installed pandoc ephemerally via `uv run --with pypandoc-binary` (39 MB bundled
+  binary, no system/admin install). pandoc 3.9.
+- Generated `docs/PAPER/submission/paper.tex` (standalone, real \title/\author/
+  \date block) and `paper.docx` from `UNDERGRAD_PAPER.md`, stripping the internal
+  draft-status scaffolding and adding a title/author(TBD)/date metadata block.
+- `docs/PAPER/SUBMISSION.md` — the route, lowest-friction first: **OSF** (register
+  the pre-registration → DOI) + **Zenodo** (DOI from a GitHub release or PDF) →
+  **SSRN** (PDF from the .docx; JEL G14/G12/C58) → **arXiv** q-fin.ST/TR (later;
+  endorsement hurdle) → journal (optional). Plus the human-only gates: author
+  name/affiliation, AI-assistance disclosure wording, license, venue choice.
+- `progress.json`: u9 (public submission) todo → **active** (artifacts + checklist
+  exist; actual posting gated on the human-only decisions).
+
+**Decided (advisor-guided):**
+- Don't hand-convert and don't install system LaTeX — use `pypandoc-binary`.
+- **Compile with XeLaTeX, not pdfLaTeX** — the paper is full of unicode (en-dash,
+  ×, ≈, "bp") that pdfLaTeX rejects. Documented in SUBMISSION.md.
+- Keep references a **formatted list**, not BibTeX \cite machinery — BibTeX is a
+  journal-submission concern, not needed for a citable record.
+- **Decouple the citable record from LaTeX:** OSF/Zenodo give a DOI with zero
+  conversion, so they go first; arXiv (LaTeX + endorsement) is step-2, not the
+  gate.
+
+**Dead-ends / caveats:** arXiv q-fin needs first-timer endorsement or an
+affiliated email — flagged as the one step that can block. The submission is
+gated on human-only decisions (author identity, disclosure wording, license);
+nothing posts until the user supplies those.
+
+**Next:** user supplies author/affiliation + disclosure wording + license; then
+OSF pre-reg + Zenodo DOI, then SSRN.
