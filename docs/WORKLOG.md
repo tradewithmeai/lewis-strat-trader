@@ -580,7 +580,7 @@ launched there. Logged in VPS_SETUP.md §9; no box yet (user setting it up soon)
 
 **Next:** undergrad paper draft (milestone u8). VPS bootstrap when the box exists.
 
-## 2026-06-04 20:29 UTC — Undergraduate paper: full IMRaD first draft   [commit pending]
+## 2026-06-04 20:29 UTC — Undergraduate paper: full IMRaD first draft   [commit f622ef9]
 
 **Context:** User: "do the undergrad paper draft now" → "continue". This is the
 active milestone u8 — the last analytical work (RQ1 effect, placebo, RQ2/RQ3 null,
