@@ -1,5 +1,6 @@
 {
   "updated": "2026-06-04",
+  "_note_u8": "Undergrad IMRaD draft complete + committed 2026-06-04; only public submission (u9) remains.",
   "note": "Progress across the three rigor tiers (see THESIS_STRUCTURE.md / ROADMAP.md). status: done | active | todo. Updated nightly by the /signoff routine. Drives the Research Progress view in dashboard.py.",
   "tiers": {
     "undergrad": {
@@ -12,7 +13,7 @@
         {"id": "u5", "name": "Phase 2 RQ2/RQ3: directional null (incl. FinBERT-only robustness)", "status": "done", "date": "2026-06-03"},
         {"id": "u6", "name": "Pre-registration + 14-agent methodology review + Amendment 1", "status": "done", "date": "2026-06-03"},
         {"id": "u7", "name": "Related work: 65 verified citations, novelty positioning", "status": "done", "date": "2026-06-03"},
-        {"id": "u8", "name": "Paper draft (IMRaD): intro, data, method, results, case study, discussion", "status": "active", "date": null},
+        {"id": "u8", "name": "Paper draft (IMRaD): intro, data, method, results, case study, discussion", "status": "done", "date": "2026-06-04"},
         {"id": "u9", "name": "Public submission (arXiv q-fin / SSRN)", "status": "todo", "date": null}
       ]
     },

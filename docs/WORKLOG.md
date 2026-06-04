@@ -579,3 +579,57 @@ which Hermes agent (install docs), VPS OS/GPU specs, and how Claude Code is
 launched there. Logged in VPS_SETUP.md §9; no box yet (user setting it up soon).
 
 **Next:** undergrad paper draft (milestone u8). VPS bootstrap when the box exists.
+
+## 2026-06-04 20:29 UTC — Undergraduate paper: full IMRaD first draft   [commit pending]
+
+**Context:** User: "do the undergrad paper draft now" → "continue". This is the
+active milestone u8 — the last analytical work (RQ1 effect, placebo, RQ2/RQ3 null,
+directive case study, methodology review, verified citations) was already done, so
+the task was to assemble it into a publishable finance paper, not to run new
+experiments.
+
+**Did:**
+- `docs/PAPER/UNDERGRAD_PAPER.md` — complete IMRaD draft. Title: *"Posts as
+  Events: Intraday Cryptocurrency Volatility Around a Head of State's Social-Media
+  Communications."* Sections: Abstract; 1 Introduction (three episodes, RQ1/2/3,
+  four contributions); 2 Related work; 3 Data; 4 Signal construction (text-only);
+  5 Method (cluster-robust regression = primary inference, two corroborating
+  nulls, balance table, BH-corrected RQ2/RQ3, block-bootstrap Sharpe CI); 6
+  Results (6.1 RQ1 vol effect, 6.2 content placebo, 6.3 RQ2/RQ3 null, 6.4
+  directive case study n=2, 6.5 macro panel); 7 Discussion/limitations; 8
+  Conclusion; Reproducibility & disclosure; References.
+- Headline numbers carried verbatim from the frozen results: BTC event dummy
+  **+3.06 bp @1h (p=0.018)**, **+5.18 bp @4h (p=0.007)**; 24h null (−0.89 bp,
+  p=0.795); placebo 4h +1.04 bp (p=0.232) on 7,232 bursts (~5× treatment, no
+  effect); RQ2/RQ3 directional null (all p>0.4; OOS Sharpe ≈ −6 to −15 across all
+  12 cells incl. FinBERT-only); directive case study n=2 (9 Apr "GREAT TIME TO
+  BUY", BTC ~+5.6% @4h).
+
+**Tested:** No new computation — advisor review of the draft, not a re-run. Advisor
+verdict: "strong draft… don't rewrite it," flagged two presentation blind spots,
+both of which are edits to how existing results are reported:
+1. **Placebo 24h omission** — §6.2 originally said "no volatility effect" but the
+   placebo's 24h coefficient is significantly *negative* (−5.39 bp, p=0.004).
+   Fixed: now reported explicitly as an unexplained opposite-sign large-sample
+   artefact, not interpreted as a post effect, and noted to mirror the treatment's
+   own null 24h coefficient (−0.89 bp).
+2. **Nominal p-values** — RQ1 headline p-values were reported without stating they
+   are uncorrected. Fixed: added a framing note at the top of §6 — p-values are
+   nominal except RQ2/RQ3 (Benjamini–Hochberg); the RQ1 multiplicity safeguard is
+   *consistency* across 2 horizons × 3 assets × 2 nulls + the placebo contrast,
+   read in the exploratory/observational spirit, not a corrected threshold.
+
+**Decided:** Apply both fixes as presentation edits rather than re-opening the
+analysis (advisor: "edits to how you present results you already have — not new
+experiments"; "don't rewrite it"). Marked **u8 done** (draft complete + committed),
+kept **u9 (public submission) open** — conservative per the published-tracker rule.
+Resisted expanding scope: the draft stands on the evidence already in hand.
+
+**Dead-ends / caveats:** The draft deliberately frames RQ1 as a volatility/timing
+signal, *not* an alpha source (effect is ~5–8% relative vol rise, untradeable per
+RQ3); the directive class is an n=2 case study with no statistical inference. These
+are honesty guards, not findings to be strengthened later without more events.
+
+**Next:** u9 — public submission (arXiv q-fin / SSRN): needs an author/affiliation
++ AI-authorship disclosure decision from the user before posting. Master's tier
+(AI-boost paper, m1/m2) is the next analytical front.
