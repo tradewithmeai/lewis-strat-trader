@@ -726,7 +726,7 @@ is gitignored, so Traffic Light shows its degraded note on the cloud (expected).
 **Next:** user does the Community Cloud deploy clicks → public URL. Then: be
 tactical about how the planned multiple papers split content (parked in memory).
 
-## 2026-06-11 22:46 UTC — VPS migration plan: cost-aware architecture   [commit pending]
+## 2026-06-11 22:46 UTC — VPS migration plan: cost-aware architecture   [commit 13cb9cf]
 **Context:** Publishing parked ("stop trying to publish; we have other work").
 Pivot to launch: stand the system up on a VPS and put the dashboard on the website
 at `stratbot.solvx.uk`. No box exists yet — this session is the architecture +
