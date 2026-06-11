@@ -725,3 +725,53 @@ is gitignored, so Traffic Light shows its degraded note on the cloud (expected).
 
 **Next:** user does the Community Cloud deploy clicks → public URL. Then: be
 tactical about how the planned multiple papers split content (parked in memory).
+
+## 2026-06-11 22:46 UTC — VPS migration plan: cost-aware architecture   [commit pending]
+**Context:** Publishing parked ("stop trying to publish; we have other work").
+Pivot to launch: stand the system up on a VPS and put the dashboard on the website
+at `stratbot.solvx.uk`. No box exists yet — this session is the architecture +
+decisions, gated on the human creating the box.
+
+**Did:** Wrote `docs/VPS_MIGRATION_PLAN.md` (companion to VPS_SETUP.md). Measured
+the constraints first: ran the dashboard locally to confirm it serves
+(localhost:8501), then sized the data — the price lake is **11.45 GB across
+~2,039,958 parquet files**. Settled the placement: a lean always-on CPU box
+(dashboard public-view + Hermes collector + Claude Code analyst, NO torch/lake),
+RunPod hired per-hour for GPU-class signal regen, desktop stays the lake's home.
+
+**Tested:** `streamlit run dashboard.py` → served on :8501 (full lab locally since
+the lake is present); stopped after verifying. Lake footprint measured via
+recursive size scan (2.04M files / 11.45 GB).
+
+**Decided (with rationale):**
+- **Hosting:** Krystal (free credit) now → **Hetzner 8 GB @ $10.99** after free
+  period (4 GB @ $5.99 austerity fallback). Krystal's RAM is expensive; Hetzner is
+  the sustainable home.
+- **Collector = Hermes Agent** (Nous Research, MIT, github.com/NousResearch/hermes-agent).
+  Verified the installer (fetched install.ps1): user-scoped, no admin, no telemetry,
+  pulls from standard sources; bundles uv+Python+Git+Node22+Playwright Chromium.
+  On Linux use **install.sh** not the advertised `.ps1` (Windows-only). Chromium's
+  300 MB–1 GB RAM appetite is what fixes the tier at 6–8 GB.
+- **Lake bridges, sized to consumer:** (1) results → VPS **via git** (desktop
+  computes lake-dependent jobs, commits artifacts, dashboard renders — the only
+  bridge the public dashboard needs); (2) lake **slice** → RunPod on demand via
+  tar / a Tailscale slice-server. No dedicated lake VPS.
+- **Subdomain:** `stratbot.solvx.uk` via nginx reverse-proxy + Let's Encrypt.
+
+**Dead-ends / caveats:**
+- **Binance klines fallback is invalid** (VPS_SETUP §5 notwithstanding): the lake
+  is **second-resolution** data and klines are 1-min bars — they cannot substitute
+  for the sec/sec analysis. So the VPS never runs the event study/`reflect`; those
+  stay where the lake (or a bridged slice) is. Corrected throughout the plan.
+- First assumed "no Hermes exists, just cron the repo's `trump_archive.py` puller."
+  Wrong — Hermes is a real Nous Research agent with a one-step installer. Reverted.
+  (The CNN-mirror puller still matters: a missed Truth Social pull is backfillable
+  from the archive, so Hermes' higher-value arm is the *headline* scrape, which has
+  no upstream archive.)
+- Considered syncing the lake to the VPS / a dedicated lake VPS — rejected on cost
+  (duplicating 11.45 GB + 2M files) in favour of the git+Tailscale bridge.
+
+**Next:** human gate — create the box (Krystal 6 GB) + add `stratbot.solvx.uk`
+DNS A record once it has an IP; send the Hermes LLM-backend key for `hermes setup`.
+Then execute: lean install → systemd dashboard + nginx/TLS → Hermes collector →
+nightly /signoff cron.
