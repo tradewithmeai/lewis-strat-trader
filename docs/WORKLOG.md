@@ -839,3 +839,66 @@ full crypto-lake-rs collector there, expose the lake to a few users, retire loca
 scan) once the invocation is known; let `--deep-backfill` finish (history deepens);
 Phase 2 — rclone→gdrive backup, optional sec/sec migration, then retire local;
 schedule `archive.py consolidate` via cron to keep file count down.
+
+## 2026-06-12 14:23 UTC — System map + Phase 1: live traffic-light comparison on the VPS   [commit pending]
+**Context:** With the deployment live, the user asked for a full audit of "what we
+actually built" — their mental model needed verifying before trusting a live
+system. Then: get the simplest live strategy comparison running today, with the
+ambition of an eventual public strategy-test platform (users submit strategies).
+
+**Did:**
+- **Code-grounded system map** → `docs/PLATFORM_PLAN.md`. Key corrections to the
+  mental model: (1) the project is **two separate tracks** — strategy lab (11
+  registered strategies, all pure price TA) and research signal suite
+  (futures hourly / macro daily / 5 RSS feeds / Trump) — verified the strategies
+  import **no** signals; only seams are the `trump_alert` notification in
+  paper_trader and a commented vol-overlay hook in backtester. (2) Macro is
+  **daily** (not hourly); futures are the hourly feed. (3) 13 Binance symbols
+  (not 12) + Coinbase/Kraken at 1m. (4) The paper is **volatility** × Trump posts
+  (1–4h vol effect), not volume/direction. (5) The live comparison was **not**
+  running on the VPS until today — the box had only collector + dashboards.
+- **Backfill hardening:** the all-symbol deep-backfill had been launched attached
+  to the SSH session and died twice on connection resets (only BTC+ETH finished
+  overnight — 2,355 days each). Relaunched as transient systemd unit
+  `deep-backfill.service` (resumable: re-run skipped 2,354 done days). Still
+  running through the remaining symbols.
+- **Phase 1 — live comparison:** ran `cli.reflect --symbol BTCUSDT --years 3` on
+  the box as a detached unit (~4.5 min): loads 1m → 1h, walk-forward (fit first
+  80%, trade last 20% ≈ 7 months OOS), scores active + 10 challengers, writes
+  `state/comparison.json`. Installed `reflect-daily.timer` — **once daily 00:20
+  UTC, Persistent=true**.
+- **End-to-end browser verification** (Playwright on the live public URL): Traffic
+  Light tab renders the real comparison — daily_swing 0.332, ensemble/
+  mtf_confluence 0.300, bollinger 0.296, regime_bb 0.270 vs ⭐ active breakout
+  0.251; ema_crossover 0.072, mtf_ls 0.080, rsi_meanrev 0.114, mtf_bb_vol 0.217.
+  Five challengers' `days_beating=1` — promotion clocks ticking.
+
+**Tested:** reflect unit ran to completion (journal + valid comparison.json);
+dashboard `load_comparison` has ttl=30s so no restart needed (verified rendering
+in-browser); timer listed with next fire 2026-06-13 00:20 UTC.
+
+**Decided (with rationale):**
+- **Cadence = exactly once/day, enforced by timer:** `update_traffic_light`
+  increments `days_beating` per RUN with no same-day guard — manual on-box reflect
+  runs would double-count the promotion clock. Documented in the unit + script.
+- **00:20 UTC** so the cycle sees a complete "yesterday" (reflect's end date is
+  today−1).
+- Phase order locked in PLATFORM_PLAN.md: simple live comparison TODAY → Hermes →
+  advanced/signal-driven strategies → public platform (user-submitted strategies =
+  untrusted code → must sandbox; flagged as the central design problem).
+
+**Dead-ends / caveats:**
+- **Do-nothing quirk:** `ensemble` traded 0 times in the OOS window yet scores
+  0.300 (full drawdown component) and "beats" the active — a cash-sitter can climb
+  to GREEN in flat/bear regimes. Left as-is for v1 (capital preservation is
+  defensible); queued for the Phase-3 scoring review.
+- The attached-SSH backfill failure cost the overnight window — lesson recorded
+  (always `systemd-run`/`nohup` long remote jobs from the start).
+- PowerShell→ssh quoting struck twice more (`$(seq …)` executed locally; `\"`
+  parse errors) — script-file-then-scp is now the standing pattern.
+- GREEN alert's desktop toast is Windows-only (win10toast, try/except-guarded) —
+  on Linux the `alerts.jsonl` write is the alert channel.
+
+**Next:** Hermes collector job spec; backfill completes on its own; Phase 2
+(rclone backup → optional sec/sec migration → retire local); Phase 3 scoring
+review + advanced strategies; sandbox design for the public platform.
