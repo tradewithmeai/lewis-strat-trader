@@ -775,3 +775,67 @@ recursive size scan (2.04M files / 11.45 GB).
 DNS A record once it has an IP; send the Hermes LLM-backend key for `hermes setup`.
 Then execute: lean install → systemd dashboard + nginx/TLS → Hermes collector →
 nightly /signoff cron.
+
+## 2026-06-12 01:39 UTC — VPS live: both dashboards public, collector running   [commit pending]
+**Context:** Execute the migration. Krystal 6 GB Ubuntu 24.04 box provisioned
+(185.44.253.199, user `kc-user`, passwordless sudo). Mid-way the user widened the
+goal: don't just bridge results — **move the whole crypto lake to the VPS, run the
+full crypto-lake-rs collector there, expose the lake to a few users, retire local.**
+
+**Did (in order):**
+- **SSH:** dedicated `id_ed25519_stratbot` key (passphrase, in agent). Krystal's
+  template injects org keys but ours wasn't among them; installed it via the
+  root-password path. Hardened: drop-in `00-stratbot-hardening.conf` (sorts ahead
+  of Krystal's `10-template-spec.conf` which set `PasswordAuthentication yes`),
+  password auth off, `PermitRootLogin prohibit-password`. Verified key-only works,
+  password refused.
+- **Base + dashboard:** apt git/python/nginx/certbot (no torch); cloned
+  lewis-strat-trader via read-only deploy key; lean venv from requirements.txt (65
+  pkgs, no torch); `stratbot-dashboard` systemd unit (streamlit 127.0.0.1:8501);
+  nginx reverse-proxy + Let's Encrypt → **https://stratbot.solvx.uk** (public view).
+- **crypto-lake-rs:** installed Rust; cloned via a second deploy key + `github-lake`
+  host alias; `cargo build --release` (needed `pkg-config`+`libssl-dev` for
+  openssl-sys; added a 4 GB swapfile as a build cushion). VPS `config.yml` with
+  **betty disabled**; systemd `cryptolake` unit running
+  `--no-tray --retention-days 0`. All 3 exchanges streaming; dashboard/API on :8000.
+- **Full strategy UI:** discovered a fresh lake makes the collector's startup
+  backfill skip (no anchor); used `--deep-backfill` to rebuild **1m history from
+  Binance** directly — no file transfer. Pointed the dashboard's `LAKE_ROOT` at
+  `~/crypto-lake-rs/data/parquet`; smoke-tested `load_bars` (5,760 1m rows → 96 1h
+  bars, real BTC prices) → Equity/Walk-forward/Trade-log tabs now render.
+- **Lake access:** **https://lake.solvx.uk** — nginx vhost → :8000, HTTP basic auth
+  (user `lake`), Let's Encrypt TLS. Verified 401 without creds, 200 with, HTTP→HTTPS.
+- **Security:** crypto-lake-rs binds `0.0.0.0:8000` and was **publicly reachable
+  unauthenticated** — closed it with ufw (allow only 22/80/443; verified :8000 now
+  times out externally, SSH intact).
+- **Hermes:** user ran the Nous installer + `hermes setup` themselves (key off-chat);
+  agent running. Collector job spec not yet wired.
+
+**Tested:** SSH key-only login + password-refused; `nginx -t` clean; both
+`/_stcore/health`=200 and certbot issuance for both subdomains; lake auth gate
+(401/200); `load_bars` end-to-end on the box; `--deep-backfill` (4-day sample =
+5,760 bars in ~3 s); ufw external :8000 = timeout.
+
+**Decided (with rationale):**
+- **Rebuild 1m history from Binance, don't transfer the lake.** Tarring the
+  11.45 GB / **2,039,958-file** lake crawled at ~12 MB/min (~16 h projected) —
+  per-file overhead on 2 M ~5.7 KB files. Killed it. `--deep-backfill` gets the 1m
+  data the dashboards actually use (they resample to 1h) with zero transfer.
+- **Second-resolution archive = Phase 2.** The unique sec/sec data still lives only
+  on local; migrating it means the project's `consolidate` tool (lossless, ~1440×
+  fewer files) which **rewrites the canonical local lake** — deferred, will confirm
+  before running. So **local is NOT yet retired** (no backup taken yet).
+- **6 GB tier confirmed** (Hermes bundles Chromium); added swap for the Rust build.
+
+**Dead-ends / caveats:**
+- **PowerShell→ssh quoting** repeatedly mangled commands (`\"`, `\$`, `>>` → EOF /
+  spaces→`n`). Switched to: write file locally → `scp` → run; this is the reliable
+  pattern for anything with quotes/redirects.
+- First clone failed — repo is **private** (deploy keys, not public clone).
+- `--retention-days` defaults to 3 (purges old raw) → set **0** to preserve history.
+- Lake dashboard exposed unauthenticated on :8000 until ufw — caught and closed.
+
+**Next:** wire Hermes' collector job (hourly Truth Social pull + daily headline
+scan) once the invocation is known; let `--deep-backfill` finish (history deepens);
+Phase 2 — rclone→gdrive backup, optional sec/sec migration, then retire local;
+schedule `archive.py consolidate` via cron to keep file count down.
