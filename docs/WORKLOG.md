@@ -840,7 +840,7 @@ scan) once the invocation is known; let `--deep-backfill` finish (history deepen
 Phase 2 — rclone→gdrive backup, optional sec/sec migration, then retire local;
 schedule `archive.py consolidate` via cron to keep file count down.
 
-## 2026-06-12 14:23 UTC — System map + Phase 1: live traffic-light comparison on the VPS   [commit pending]
+## 2026-06-12 14:23 UTC — System map + Phase 1: live traffic-light comparison on the VPS   [commit 11395d5]
 **Context:** With the deployment live, the user asked for a full audit of "what we
 actually built" — their mental model needed verifying before trusting a live
 system. Then: get the simplest live strategy comparison running today, with the
