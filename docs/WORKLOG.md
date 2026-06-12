@@ -776,7 +776,7 @@ DNS A record once it has an IP; send the Hermes LLM-backend key for `hermes setu
 Then execute: lean install → systemd dashboard + nginx/TLS → Hermes collector →
 nightly /signoff cron.
 
-## 2026-06-12 01:39 UTC — VPS live: both dashboards public, collector running   [commit pending]
+## 2026-06-12 01:39 UTC — VPS live: both dashboards public, collector running   [commit 697d1a9]
 **Context:** Execute the migration. Krystal 6 GB Ubuntu 24.04 box provisioned
 (185.44.253.199, user `kc-user`, passwordless sudo). Mid-way the user widened the
 goal: don't just bridge results — **move the whole crypto lake to the VPS, run the
