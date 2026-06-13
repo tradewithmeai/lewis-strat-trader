@@ -903,7 +903,7 @@ in-browser); timer listed with next fire 2026-06-13 00:20 UTC.
 (rclone backup → optional sec/sec migration → retire local); Phase 3 scoring
 review + advanced strategies; sandbox design for the public platform.
 
-## 2026-06-13 23:03 UTC — Lake migration to VPS + verified Drive backup (the hard slog)   [commit pending]
+## 2026-06-13 23:03 UTC — Lake migration to VPS + verified Drive backup (the hard slog)   [commit 2cc406c]
 **Context:** Move the full crypto lake onto the VPS so it's the system of record,
 back it up off-box, and retire the local instance. This turned into the longest,
 messiest arc of the project — logged in full because the dead-ends are the value.
