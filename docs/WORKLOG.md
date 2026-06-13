@@ -902,3 +902,70 @@ in-browser); timer listed with next fire 2026-06-13 00:20 UTC.
 **Next:** Hermes collector job spec; backfill completes on its own; Phase 2
 (rclone backup → optional sec/sec migration → retire local); Phase 3 scoring
 review + advanced strategies; sandbox design for the public platform.
+
+## 2026-06-13 23:03 UTC — Lake migration to VPS + verified Drive backup (the hard slog)   [commit pending]
+**Context:** Move the full crypto lake onto the VPS so it's the system of record,
+back it up off-box, and retire the local instance. This turned into the longest,
+messiest arc of the project — logged in full because the dead-ends are the value.
+
+**Did (eventual working path):**
+- VPS already had Binance 1m history (deep-backfill, earlier). The local-unique
+  data was the ~79 days of **1-second** bars + Coinbase/Kraken history.
+- Stopped the local collector + disabled its "Crypto Lake" scheduled task → VPS
+  became sole collector.
+- Built `tools/_stage_ship.py`: non-destructively consolidate local-unique days
+  (2M files → ~1500 one-per-day parquet, row-count verified), staged to
+  `D:/lake_ship`. Binance: only live (1s) days; coinbase/kraken: all.
+- Corrupt-day gaps (1-2 bad minute-files per day broke duckdb COPY) → `_rawfill_gaps.py`
+  raw-copies those coinbase/kraken days as-is.
+- Tarred the staging tree via an explicit include-list (959 binance consolidated +
+  30,183 coinbase/kraken = 31,142 files, 1.28 GB), scp'd to VPS, merged with
+  `merge_lake.sh`: skip days the VPS already has live (>50 files), replace binance
+  1m backfill with the 1s file, add coinbase/kraken. Result: 1,419 added, 14
+  skipped, 951 binance days upgraded 1m→1s, 0 failed.
+- On-VPS `quarantine_gaps.py` renamed genuinely-corrupt files to `.parquet.bad`
+  (full tz-safe column decode) — 27 corrupt files across 33 raw gap days.
+- **Backup:** rclone + Google Drive OAuth (headless, via `ssh -L 53682` tunnel so
+  the VPS used the local browser). Switched from `rclone sync` to a **dated-tarball
+  snapshot** scheme (`lake_snapshot.sh` + `lake-snapshot.timer`, 04:00 UTC daily,
+  RETAIN_DAYS=14). Initial snapshot `crypto-lake-2026-06-13.tar` (3.66 GB) uploaded;
+  `rclone check` = **0 differences, 1 matching file**.
+
+**Tested:** merge read across the 1m→1s boundary (148,270 1m → 2,472 1h bars, 0
+gaps, BTC 59k–82k); coinbase BTC-USD 26,633 rows + kraken 27,637 rows post-quarantine;
+`rclone check` hash-match local tar vs Drive = 0 differences. VPS lake = 3.31 GiB /
+110k objects (compact vs the old 11.45 GB local because consolidated).
+
+**Decided (with rationale + the costly reversals):**
+- **Consolidate-then-ship was the WRONG call; should have just copied bytes.** The
+  reasoning ("2M tiny files make a naive tar ~16h, so shrink first") weighed the
+  risk wrong: duckdb's strict decoder chokes on corruption the *destination's own
+  reader tolerates*, and the compute was heavy. A dumb tar/scp would have been
+  corruption-agnostic and couldn't have destabilised anything. Saved to memory
+  [[transfers-copy-dont-process]].
+- **Backup must be `copy`/snapshots, not `sync`.** User caught that `sync` mirrors
+  deletions — a lost source file would propagate to the "backup". Switched to dated
+  tarball snapshots: versioned, additive, one file each (sidesteps Drive's per-file
+  rate limit that made the per-file copy crawl at ~830 files/check).
+- **Detach long jobs from the first run.** Saved to memory [[detach-long-remote-jobs]].
+
+**Dead-ends / failures (the expensive knowledge):**
+- 7-wide parallel consolidation (to "speed it up") spiked file-handle/IO churn and
+  **crashed the user's machine → forced reset**, losing the overnight window. Too
+  aggressive. Re-ran at 3 shards / BelowNormal priority.
+- Single-threaded consolidation verification re-read every 1440-file day twice
+  (~36h projected across failures) — a self-inflicted slowdown.
+- Footer-only corruption check (`PAR1`) and `LIMIT 1` were too shallow to catch
+  corrupt *data pages* (`TProtocolException`) — silently dropped whole good days
+  until a full tz-safe decode isolated the 1-2 bad minute-files each.
+- Per-file rclone upload to Drive = hours (rate-limited); abandoned for tarball.
+- PowerShell→ssh quoting (`$()`, `\"`, `&&`) broke commands repeatedly →
+  standing rule: write script file, scp, run.
+
+**Data loss (precise):** 27 one-minute files of secondary-venue (Coinbase/Kraken)
+1s data, from collector mid-flush crashes — unrecoverable by any tool; originals
+remain in the local archive. Nothing else lost.
+
+**Next:** freeze local lake read-only as cold archive; clean transient files
+(VPS /tmp/lake_*, local D:/lake_ship*); then Hermes job spec. Local is superseded
+(VPS = system of record, Drive backup verified) but not yet formally retired.
