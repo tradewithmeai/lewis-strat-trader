@@ -1,11 +1,13 @@
 # Streamlit app config. Theme applies locally and on Streamlit Community Cloud.
+# Quant-terminal aesthetic: charcoal base, purple accent, traffic-light greens.
+# Custom fonts (Archivo / IBM Plex Mono) are injected via CSS in dashboard.py.
 [theme]
 base = "dark"
-primaryColor = "#1f77b4"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#1a1f2b"
-textColor = "#fafafa"
-font = "sans serif"
+primaryColor = "#a855f7"
+backgroundColor = "#0e0b16"
+secondaryBackgroundColor = "#171221"
+textColor = "#ece9f5"
+font = "monospace"
 
 [browser]
 gatherUsageStats = false

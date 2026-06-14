@@ -26,10 +26,88 @@ LAKE_ROOT = os.environ.get("LAKE_ROOT", "D:/Documents/11Projects/crypto-lake-rs/
 LAKE_AVAILABLE = Path(LAKE_ROOT).is_dir()
 
 st.set_page_config(
-    page_title="Strategy Dashboard",
-    page_icon="📈",
+    page_title="stratbot · live strategy tournament",
+    page_icon="🚦",
     layout="wide",
 )
+
+# ── Theme (quant terminal: charcoal + purple accent + traffic-light greens) ─────
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    :root{
+      --bg:#0e0b16; --panel:#171221; --edge:#2a2138;
+      --ink:#ece9f5; --muted:#9b93b5;
+      --purple:#a855f7; --purple-dim:#6d28d9;
+      --green:#00c853; --orange:#ff6d00; --red:#d50000;
+    }
+    .stApp{ background:
+        radial-gradient(1100px 520px at 82% -12%, #241640 0%, rgba(36,22,64,0) 60%),
+        var(--bg); }
+    html, body, [class*="css"], .stMarkdown, p, span, label, div, input, textarea{
+        font-family:'IBM Plex Mono', ui-monospace, monospace; }
+    h1, h2, h3, h4{ font-family:'Archivo', sans-serif !important; letter-spacing:-0.02em; }
+    h1{ font-weight:800 !important; }
+    /* cleaner public face */
+    #MainMenu{ visibility:hidden; }
+    header[data-testid="stHeader"]{ background:transparent; }
+    footer{ visibility:hidden; }
+    a{ color:var(--purple) !important; }
+    [data-testid="stSidebar"]{ background:var(--panel); border-right:1px solid var(--edge); }
+    /* selected radio + interactive accents in purple */
+    [data-testid="stSidebar"] .stRadio [aria-checked="true"] p{ color:var(--purple) !important; font-weight:600; }
+    .stExpander{ border:1px solid var(--edge) !important; border-radius:10px; background:rgba(23,18,33,0.6); }
+    [data-testid="stMetricValue"]{ font-family:'IBM Plex Mono', monospace; }
+    /* the discreet admin trigger button in the sidebar footer */
+    [data-testid="stSidebar"] .stButton button{ background:transparent; border:1px solid var(--edge); color:var(--muted); }
+    [data-testid="stSidebar"] .stButton button:hover{ border-color:var(--purple); color:var(--purple); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ── Access control: public by default; hidden 7-click + password unlocks admin ──
+import hmac
+
+ADMIN_PASSWORD = os.environ.get("DASHBOARD_ADMIN_PASSWORD", "")
+st.session_state.setdefault("admin", False)
+st.session_state.setdefault("_clicks", 0)
+
+
+def _check_pw(pw: str) -> bool:
+    """Constant-time check; never unlocks if the env password is unset."""
+    return bool(ADMIN_PASSWORD) and hmac.compare_digest(pw, ADMIN_PASSWORD)
+
+
+def render_admin_gate() -> None:
+    """Sidebar footer: a discreet 7-click trigger that reveals a password field."""
+    st.sidebar.markdown("---")
+    if st.session_state.admin:
+        st.sidebar.caption("🔓 admin view")
+        if st.sidebar.button("exit admin", use_container_width=True):
+            st.session_state.admin = False
+            st.session_state._clicks = 0
+            st.rerun()
+        return
+    foot, trigger = st.sidebar.columns([5, 1])
+    foot.caption("stratbot · live tournament")
+    if trigger.button("·", key="_secret"):
+        st.session_state._clicks += 1
+    if st.session_state._clicks >= 7:
+        pw = st.sidebar.text_input(
+            "access", type="password", label_visibility="collapsed", placeholder="password"
+        )
+        if pw:
+            if _check_pw(pw):
+                st.session_state.admin = True
+                st.session_state._clicks = 0
+                st.rerun()
+            else:
+                st.sidebar.error("incorrect")
+
+
+is_admin = st.session_state.admin
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -142,23 +220,19 @@ def available_strategies() -> list[str]:
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
-st.sidebar.title("Strategy Dashboard")
+st.sidebar.title("🚦 stratbot")
 
-PUBLIC_TABS = ["Research Progress", "Traffic Light"]
+# Public sees only the live tournament. The hidden admin login unlocks the
+# research timeline and the lake-backed strategy lab (kept, just gated).
+PUBLIC_TABS = ["Traffic Light"]
 LAKE_TABS = ["Equity Curves", "Walk-forward Folds", "Trade Log"]
-tab_options = PUBLIC_TABS + (LAKE_TABS if LAKE_AVAILABLE else [])
+ADMIN_TABS = ["Research Progress"] + (LAKE_TABS if LAKE_AVAILABLE else [])
+tab_options = PUBLIC_TABS + (ADMIN_TABS if is_admin else [])
 
 tab_choice = st.sidebar.radio("View", tab_options, index=0)
 
-if not LAKE_AVAILABLE:
-    st.sidebar.info(
-        "**Public view.** The live strategy lab — equity curves, walk-forward "
-        "folds and the trade log — runs locally against the price lake. Shown "
-        "here: the research-progress timeline and the challenger traffic-light."
-    )
-
-# Strategy-lab controls only matter when the lake is present.
-if LAKE_AVAILABLE:
+# Strategy-lab controls only matter for admins viewing the lake-backed tabs.
+if is_admin and LAKE_AVAILABLE:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Settings")
 
@@ -186,6 +260,8 @@ if LAKE_AVAILABLE:
 
     st.sidebar.markdown("---")
     st.sidebar.caption(f"LAKE_ROOT: `{LAKE_ROOT}`")
+
+render_admin_gate()
 
 # ── Tab: Traffic Light ────────────────────────────────────────────────────────
 
@@ -264,12 +340,36 @@ if tab_choice == "Research Progress":
             st.dataframe(tbl, use_container_width=True, hide_index=True)
 
 elif tab_choice == "Traffic Light":
-    st.title("Traffic Light — Challenger Scores")
+    st.title("Traffic Light — Live Strategy Tournament")
+    st.markdown(
+        "A **live, public experiment.** Systematic crypto-trading strategies compete "
+        "every day on **out-of-sample** data — fees and slippage included. A challenger "
+        "must beat the reigning strategy for **7 days running** to turn 🟠 orange, then "
+        "hold it for **14 more** to reach 🟢 green and be flagged for promotion "
+        "(a human makes the final call). So far, **none has earned it** — and that null "
+        "result *is* the finding: most strategies that dazzle in a backtest quietly fail "
+        "honest forward testing. Watch it happen in real time. *(Paper trading — no real money.)*"
+    )
+    with st.expander("How this works"):
+        st.markdown(
+            "- **Score** = a blend of Sharpe (risk-adjusted return), win rate, and a "
+            "drawdown penalty — higher is better.\n"
+            "- **Out-of-sample:** each strategy is tuned on the first 80% of history and "
+            "judged only on the unseen remainder, so we're not rewarding curve-fitting.\n"
+            "- **Costs are real:** 0.1% taker fee + ~2bp slippage on every entry and exit.\n"
+            "- **The clock:** a challenger needs the higher score for 7 consecutive daily "
+            "checks → 🟠, then 14 more at-or-above → 🟢. Fall behind and the clock resets.\n"
+            "- **No auto-trading:** a 🟢 only raises an alert for human review; the system "
+            "never switches strategies by itself.\n"
+            "- Recomputed nightly (00:20 UTC) against a self-hosted price lake."
+        )
     comp = load_comparison()
 
     if not comp:
-        st.warning("No comparison.json found. Run a reflect cycle first.")
+        st.warning("No comparison data yet — the next nightly cycle will populate it.")
     else:
+        _updated = max((v.get("last_updated") or "" for v in comp.values()), default="—")
+        st.caption(f"Last updated: {_updated} · recomputed daily 00:20 UTC")
         rows = []
         for name, info in sorted(comp.items()):
             is_active = info.get("is_active", False)
