@@ -28,9 +28,25 @@ STATE_DIR = Path(__file__).parent.parent / "state"
 COMPARISON_FILE = STATE_DIR / "comparison.json"
 ALERTS_FILE = STATE_DIR / "alerts.jsonl"
 
+# Each strategy paper-trades a notional $1,000 account so the comparison is a
+# plain, intuitive profit-and-loss rather than an abstract score.
+START_CAPITAL = 1000.0
+
 # Days a challenger must beat active before promotion
 DAYS_RED_TO_ORANGE = 7
 DAYS_ORANGE_TO_GREEN = 14
+
+
+def pnl_fields(result: "BacktestResult") -> dict:
+    """A $1,000 paper-trade view of a backtest's out-of-sample return."""
+    r = result.total_return
+    balance = round(START_CAPITAL * (1.0 + r), 2)
+    return {
+        "balance": balance,
+        "pnl": round(balance - START_CAPITAL, 2),
+        "return_pct": round(r * 100.0, 2),
+        "n_trades": result.n_trades,
+    }
 
 
 def composite_score(result: BacktestResult) -> float:
@@ -71,7 +87,9 @@ def update_traffic_light(
 
     challenger_score = composite_score(result)
     active_score = composite_score(active_result)
-    beating = challenger_score >= active_score
+    # "Beating" is now decided by actual paper-trade return (P&L), not the
+    # composite score — the leaderboard a visitor sees IS the comparison.
+    beating = result.total_return >= active_result.total_return
 
     entry = state.get(
         strategy_name,
@@ -113,6 +131,7 @@ def update_traffic_light(
     entry["light"] = light
     entry["score"] = round(challenger_score, 4)
     entry["active_score"] = round(active_score, 4)
+    entry.update(pnl_fields(result))
     entry["last_updated"] = today
     state[strategy_name] = entry
 
@@ -124,6 +143,7 @@ def update_traffic_light(
         "orange_since": None,
         "last_updated": today,
         "is_active": True,
+        **pnl_fields(active_result),
     }
 
     save_comparison(state)

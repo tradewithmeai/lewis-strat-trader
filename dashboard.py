@@ -112,6 +112,22 @@ is_admin = st.session_state.admin
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 LIGHT_COLOURS = {"GREEN": "#00c853", "ORANGE": "#ff6d00", "RED": "#d50000"}
+LIGHT_EMOJI = {"GREEN": "🟢", "ORANGE": "🟠", "RED": "🔴"}
+
+# Plain-language one-liners so a visitor knows what each strategy actually does.
+STRATEGY_DESC = {
+    "markov_regime": "RSI signals, filtered by a bull/bear/sideways regime model",
+    "rsi_meanrev": "Buys oversold dips, sells the bounce (mean reversion)",
+    "ema_crossover": "Trend-following: fast EMA crosses slow, with a trend filter",
+    "mtf_confluence": "Enters only when trend + MACD + RSI + VWAP all agree",
+    "breakout": "Buys N-day highs, exits on lows (momentum breakout)",
+    "daily_swing": "Daily swing trades from trend EMA + MACD + RSI (long & short)",
+    "mtf_ls": "Multi-timeframe long/short via trend, MACD, RSI & VWAP bands",
+    "bollinger": "Bollinger-band mean reversion with a trend-slope filter",
+    "mtf_bb_vol": "Bollinger bands gated by a relative-volume spike",
+    "regime_bb": "Bollinger bands gated by ADX trend strength + volume",
+    "ensemble": "Votes across all the other strategies; trades on consensus",
+}
 REGIME_COLOURS = {
     "bull": "rgba(0,200,83,0.12)",
     "bear": "rgba(213,0,0,0.12)",
@@ -229,7 +245,12 @@ LAKE_TABS = ["Equity Curves", "Walk-forward Folds", "Trade Log"]
 ADMIN_TABS = ["Research Progress"] + (LAKE_TABS if LAKE_AVAILABLE else [])
 tab_options = PUBLIC_TABS + (ADMIN_TABS if is_admin else [])
 
-tab_choice = st.sidebar.radio("View", tab_options, index=0)
+# A single-option menu is pointless — only show the picker once the admin login
+# has unlocked extra views; otherwise the page is just the live tournament.
+if len(tab_options) > 1:
+    tab_choice = st.sidebar.radio("View", tab_options, index=0)
+else:
+    tab_choice = tab_options[0]
 
 # Strategy-lab controls only matter for admins viewing the lake-backed tabs.
 if is_admin and LAKE_AVAILABLE:
@@ -352,13 +373,13 @@ elif tab_choice == "Traffic Light":
     )
     with st.expander("How this works"):
         st.markdown(
-            "- **Score** = a blend of Sharpe (risk-adjusted return), win rate, and a "
-            "drawdown penalty — higher is better.\n"
+            "- **The money:** every strategy paper-trades the same **$1,000** account. "
+            "The leaderboard is just the resulting balance and profit/loss — no made-up score.\n"
             "- **Out-of-sample:** each strategy is tuned on the first 80% of history and "
-            "judged only on the unseen remainder, so we're not rewarding curve-fitting.\n"
+            "trades only the unseen remainder, so we're not rewarding curve-fitting.\n"
             "- **Costs are real:** 0.1% taker fee + ~2bp slippage on every entry and exit.\n"
-            "- **The clock:** a challenger needs the higher score for 7 consecutive daily "
-            "checks → 🟠, then 14 more at-or-above → 🟢. Fall behind and the clock resets.\n"
+            "- **The clock:** a challenger needs a higher balance than the champion for 7 "
+            "consecutive daily checks → 🟠, then 14 more ahead → 🟢. Fall behind and it resets.\n"
             "- **No auto-trading:** a 🟢 only raises an alert for human review; the system "
             "never switches strategies by itself.\n"
             "- Recomputed nightly (00:20 UTC) against a self-hosted price lake."
@@ -369,59 +390,62 @@ elif tab_choice == "Traffic Light":
         st.warning("No comparison data yet — the next nightly cycle will populate it.")
     else:
         _updated = max((v.get("last_updated") or "" for v in comp.values()), default="—")
-        st.caption(f"Last updated: {_updated} · recomputed daily 00:20 UTC")
+        st.caption(f"Each strategy paper-trades $1,000 · last updated {_updated} · recomputed daily 00:20 UTC")
+
         rows = []
-        for name, info in sorted(comp.items()):
-            is_active = info.get("is_active", False)
-            light = info.get("light", "RED")
-            score = info.get("score", 0.0)
-            active_score = info.get("active_score", None)
-            days = info.get("days_beating", 0) or 0
-            orange_since = info.get("orange_since", "—") or "—"
-            updated = info.get("last_updated", "—")
-            rows.append(
-                {
-                    "Strategy": ("⭐ " if is_active else "") + name,
-                    "Light": light,
-                    "Score": round(score, 4),
-                    "Active Score": round(active_score, 4) if active_score else "—",
-                    "Days Beating": days,
-                    "Orange Since": orange_since,
-                    "Updated": updated,
-                }
-            )
+        for name, info in comp.items():
+            rows.append({
+                "name": name,
+                "is_active": info.get("is_active", False),
+                "light": info.get("light", "RED"),
+                "balance": info.get("balance"),
+                "pnl": info.get("pnl"),
+                "ret": info.get("return_pct"),
+                "trades": info.get("n_trades", 0) or 0,
+                "days": info.get("days_beating", 0) or 0,
+            })
+        # leaderboard order: most money first (unknown balances sink to the bottom)
+        rows.sort(key=lambda r: (r["balance"] is not None, r["balance"] if r["balance"] is not None else -1e9), reverse=True)
 
-        df_tl = pd.DataFrame(rows)
+        def _money(x, signed=False):
+            if x is None:
+                return "—"
+            sign = "+" if (signed and x >= 0) else ("-" if (signed and x < 0) else "")
+            return f"{sign}${abs(x):,.0f}"
 
-        def colour_light(val):
-            c = LIGHT_COLOURS.get(val, "#888")
-            return f"background-color: {c}22; color: {c}; font-weight: bold"
+        table = [{
+            "": LIGHT_EMOJI.get(r["light"], "⚪"),
+            "Strategy": ("👑 " if r["is_active"] else "") + r["name"],
+            "What it does": STRATEGY_DESC.get(r["name"], "—"),
+            "Balance": _money(r["balance"]),
+            "P&L": _money(r["pnl"], signed=True),
+            "Return": f"{r['ret']:+.1f}%" if r["ret"] is not None else "—",
+            "Trades": r["trades"],
+            "Days ahead": r["days"],
+        } for r in rows]
+        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+        st.caption("👑 = current champion (the strategy in play). 🟢 promoted-ready · 🟠 7+ days ahead · 🔴 behind.")
 
-        styled = df_tl.style.map(colour_light, subset=["Light"])
-        st.dataframe(styled, use_container_width=True, hide_index=True)
-
-        st.markdown("---")
-        st.subheader("Score bars")
-        fig = go.Figure()
-        names = [r["Strategy"] for r in rows]
-        scores = [r["Score"] for r in rows]
-        lights = [r["Light"] for r in rows]
-        bar_colours = [LIGHT_COLOURS.get(l, "#888") for l in lights]
-        fig.add_trace(
-            go.Bar(
-                x=names,
-                y=scores,
-                marker_color=bar_colours,
-                text=[f"{s:.3f}" for s in scores],
+        # ── $1,000 balance bars (coloured by light, $1,000 reference line) ──────
+        plotted = [r for r in rows if r["balance"] is not None]
+        if plotted:
+            st.markdown("---")
+            st.subheader("$1,000 paper-trade — where each account stands")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=[("👑 " if r["is_active"] else "") + r["name"] for r in plotted],
+                y=[r["balance"] for r in plotted],
+                marker_color=[LIGHT_COLOURS.get(r["light"], "#888") for r in plotted],
+                text=[_money(r["balance"]) for r in plotted],
                 textposition="outside",
-            )
-        )
-        fig.update_layout(height=350, yaxis_title="Score", xaxis_title="", margin=dict(t=20, b=60))
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.caption(
-            "Score is a composite of Sharpe, win rate, and max drawdown from the most recent reflect cycle. GREEN = active. A challenger needs 7 days beating active → ORANGE, then 14 days at ORANGE → GREEN."
-        )
+                hovertemplate="%{x}<br>balance %{y:$,.0f}<extra></extra>",
+            ))
+            fig.add_hline(y=1000, line_dash="dash", line_color="#9b93b5",
+                          annotation_text="$1,000 start", annotation_position="right")
+            fig.update_layout(height=380, yaxis_title="account value (USD)", xaxis_title="",
+                              margin=dict(t=20, b=80), plot_bgcolor="rgba(0,0,0,0)",
+                              paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, use_container_width=True)
 
 # ── Tab: Equity Curves ────────────────────────────────────────────────────────
 
