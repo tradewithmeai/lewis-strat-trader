@@ -163,6 +163,45 @@ def load_progress() -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+@st.cache_data(ttl=60)
+def load_signals_report() -> tuple[str, str]:
+    """The signal digest the VPS monitor writes. Returns (markdown, last-modified)."""
+    p = STATE_DIR / "signals" / "report.md"
+    if not p.exists():
+        return "", ""
+    from datetime import datetime, timezone
+
+    mtime = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return p.read_text(encoding="utf-8"), mtime
+
+
+@st.cache_data(ttl=60)
+def load_recent_events(n: int = 40) -> pd.DataFrame:
+    """Most recent items from the appended, deduped news/Trump event log."""
+    p = STATE_DIR / "signals" / "news.jsonl"
+    if not p.exists():
+        return pd.DataFrame()
+    rows = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        rows.append({
+            "ts": d.get("ts") or d.get("captured_at") or "",
+            "source": d.get("source", "?"),
+            "title": (d.get("title") or d.get("summary") or "")[:140],
+            "tags": ", ".join(d.get("tags", []) or []),
+        })
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows).sort_values("ts", ascending=False).head(n)
+    return df
+
+
 @st.cache_data(ttl=300)
 def load_bars_cached(symbol: str, start: date, end: date) -> pd.DataFrame:
     os.environ["LAKE_ROOT"] = LAKE_ROOT
@@ -242,7 +281,7 @@ st.sidebar.title("🚦 stratbot")
 # research timeline and the lake-backed strategy lab (kept, just gated).
 PUBLIC_TABS = ["Traffic Light"]
 LAKE_TABS = ["Equity Curves", "Walk-forward Folds", "Trade Log"]
-ADMIN_TABS = ["Research Progress"] + (LAKE_TABS if LAKE_AVAILABLE else [])
+ADMIN_TABS = ["Market Signals", "Research Progress"] + (LAKE_TABS if LAKE_AVAILABLE else [])
 tab_options = PUBLIC_TABS + (ADMIN_TABS if is_admin else [])
 
 # A single-option menu is pointless — only show the picker once the admin login
@@ -359,6 +398,33 @@ if tab_choice == "Research Progress":
                 for m in tier.get("milestones", [])
             ])
             st.dataframe(tbl, use_container_width=True, hide_index=True)
+
+elif tab_choice == "Market Signals":
+    st.title("Market Signals")
+    report, mtime = load_signals_report()
+    if not report:
+        st.info(
+            "No signal digest yet. The VPS monitor (`signals-monitor.timer`) writes "
+            "`state/signals/report.md` every few hours — futures positioning, macro/"
+            "cross-asset correlations, crypto news, and Trump Truth-Social posts."
+        )
+    else:
+        st.caption(f"Digest generated {mtime} · futures · macro · news · Trump (Truth Social)")
+        st.markdown(report)
+        st.markdown("---")
+        st.subheader("Latest events")
+        ev = load_recent_events(60)
+        if ev.empty:
+            st.caption("No events captured yet.")
+        else:
+            is_trump = ev["source"].str.startswith("trump")
+            tr, nw = ev[is_trump], ev[~is_trump]
+            if not tr.empty:
+                st.markdown("**🇺🇸 Trump · Truth Social** (latest)")
+                st.dataframe(tr[["ts", "title"]].head(15), use_container_width=True, hide_index=True)
+            if not nw.empty:
+                st.markdown("**📰 Crypto / financial news** (latest)")
+                st.dataframe(nw[["ts", "source", "title"]].head(30), use_container_width=True, hide_index=True)
 
 elif tab_choice == "Traffic Light":
     st.title("Traffic Light — Live Strategy Tournament")
