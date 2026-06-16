@@ -12,6 +12,12 @@ slow-building** rather than veering off. Companion to `HERMES_SETUP_2026-06-15.m
    active strategy; promotion stays human-reviewed (alerts only). New strategies
    are proposed/added as *challengers*, not promoted.
 3. **Bounded resources.** Hard daily caps prevent runaway cost/scope.
+4. **Darren does ops + light file work; Claude Code does the heavy lifting.**
+   Darren may read and write files directly (configs, notes, scripts, run
+   outputs, reports) — he is not read-only. The hard guardrails below, not a
+   blanket read-only rail, are what keep this safe. Complex analysis and
+   substantial code is delegated to the interactive Claude Code session within
+   the daily budget; Darren orchestrates and records, Claude builds.
 
 ## Hard daily limits
 - **≤ 2 web searches per day.**
