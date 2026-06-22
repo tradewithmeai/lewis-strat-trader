@@ -36,12 +36,22 @@ slow-building** rather than veering off. Companion to `HERMES_SETUP_2026-06-15.m
    `registry`). If it survives robustly, add it as a **challenger** (or surface it
    for review). Target ≈ **one new simple strategy per week**.
 
-## Schedule & reporting
-- **Run once daily at 05:00 UTC** (= 06:00 BST currently). This sits *after* all
-  other daily jobs complete: reflect 00:20, lake-snapshot 04:00 (~3 min), signals
-  04:15 — so the round-up sees fresh state.
-- **Schedule in UTC/GMT, never local time** (systemd `OnCalendar=… UTC`), so it
-  doesn't drift across the BST↔GMT switch.
+## Runtime & scheduling
+- **Darren runs as a persistent service.** Hermes is launched under systemd
+  (enabled, auto-restart, survives reboot — enable lingering if it's a user
+  service) so its **own internal scheduler** (`~/.hermes/hermes-agent/cron/`)
+  stays alive and fires the daily routine. This is deliberate: the test is
+  whether a free-running autonomous Hermes does something useful *within the
+  hard budgets below* — the budgets, not a short-lived process, are the rail.
+  (Lesson 2026-06-22: the first attempt registered the dream in Hermes' in-process
+  scheduler while Hermes only ran interactively — so when the session ended the
+  scheduler died and nothing ever fired. A persistent service fixes that.)
+- **Fire the daily routine at 05:00 UTC** (= 06:00 BST currently). This sits
+  *after* all other daily jobs complete: reflect 00:20, lake-snapshot 04:00
+  (~3 min), signals 04:15 — so the round-up sees fresh state.
+- **Schedule in UTC/GMT, never local time**, so it doesn't drift across the
+  BST↔GMT switch. Verify the job is registered and persisted in Hermes' scheduler
+  (not just held in memory) so it survives a restart.
 - **Report every daily dream session to the Telegram channel** — a short summary:
   systems round-up status, what was looked at, the hypothesis tried, the backtest
   result, and whether a challenger was added. (Requires the Telegram bot token +
