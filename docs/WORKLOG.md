@@ -969,3 +969,56 @@ remain in the local archive. Nothing else lost.
 **Next:** freeze local lake read-only as cold archive; clean transient files
 (VPS /tmp/lake_*, local D:/lake_ship*); then Hermes job spec. Local is superseded
 (VPS = system of record, Drive backup verified) but not yet formally retired.
+
+## 2026-06-25 15:50 UTC — Backtest data cliff at June 11: lake consolidation gap closed + daily timer [commit pending]
+
+**Context:** Darren's first persistent dream report (now firing on schedule) flagged
+that backtests "stop at 2026-06-11". Investigation (read-only over PowerShell→ssh)
+confirmed the lake is healthy and writing 60 one-second bars/min across all 19
+symbols — nothing dead. The real cause is the known backfill-freshness gotcha:
+`lake_adapter.py` skips live days (`>50` files) and every backtest entry point uses
+`backfill_only=True` (per `RESEARCH_NOTE.md:61`, to avoid corrupt-tail live files),
+so backtests read only the *consolidated* backfill — which ended June 11 because
+the live days since were never rolled up. The `archive.py consolidate` cron the
+worklog flagged was never installed on the VPS.
+
+**Did:** Ran the one-time catch-up of the whole backlog, then installed a daily
+consolidation timer. Wrote a hardened consolidator `local_system/tools/consolidate_lake.py`
+(deployed to VPS `~/bin/`) after `archive.py consolidate` proved unsafe here.
+
+**Tested / results:**
+- Dry run: 231 partitions, 329,158 files → 231 (incl. unconsolidated kraken/coinbase
+  days back to late May, not just the June-11 cliff).
+- `archive.py consolidate` (run 1) **OOM-killed** after ~116 partitions — it reuses one
+  DuckDB connection across all partitions; on the 5.7 GiB box memory accumulated past
+  the kernel limit (kernel killed our job only; collector/dashboard survived).
+- Hardened runner finished the remainder: **79/79 partitions, 0 errors**, 312 MB peak.
+- Verification: `load_bars("BTCUSDT", backfill_only=True)` returned 76,320 bars to
+  **2026-06-22 23:59** (was June 11). A `--days 1` top-up (19/19, 0 errors) extended it
+  to **2026-06-23 23:59** (77,760 bars, contiguous — dedupe verified intact).
+- Timer `lake-consolidate.timer` (user) enabled, next run 2026-06-26 00:10 UTC.
+
+**Decided:**
+- Built a dedicated runner instead of patching shared `archive.py`: **fresh DuckDB
+  connection per partition + 512 MB cap** (kills the OOM at the root, vs a cgroup cap
+  that would just re-kill), and `MemoryMax=1G`/`MemorySwapMax=0` on the unit as backstop.
+- Merge **all** files incl. existing `consolidated.parquet` and **dedupe on
+  `window_start`**, with **rename-before-delete** — so a late backfill into an
+  already-consolidated day can't lose/dup data, and an interrupt can't hide a day from
+  the reader. (Chosen over archive.py's raw-only merge, which risks dups, and over the
+  catch-up's "rebuild from raw", which would drop prior consolidated data.)
+- Timer at `--days 2` (00:10 UTC, before reflect 00:20) — leaves recent days raw so
+  collector backfill settles before freezing. Consolidation rewrites lake partitions =
+  a hard-guardrail action, so this is LC/owner-run, **not** a Darren task.
+
+**Dead-ends / failures:**
+- `archive.py consolidate` OOM (above) — the reason a bounded custom runner exists.
+- First custom runner dropped archive.py's `len(files)<=1` guard → it began
+  "consolidating" 27,791 single-file *historical* days (1→1 rewrites). Caught at 880
+  (data preserved, just renamed), stopped, restored the guard (`>1` raw files), re-ran.
+- Restated [[vps-ssh-use-powershell]]: the Bash tool can't unlock the passphrase key;
+  all VPS work went through the PowerShell ssh + piped-script pattern.
+
+**Next:** daily timer maintains freshness (~2-day lag). Optional later: upstream the
+memory fix into crypto-lake-rs `archive.py`; address the minor `>50`-file rule that
+misclassifies the *current* partial day as backfill early each UTC day.
