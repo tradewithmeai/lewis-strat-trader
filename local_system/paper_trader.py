@@ -149,7 +149,12 @@ class PaperAccount:
     def load(self, d: dict) -> None:
         self.balance = float(d.get("balance", START_CAPITAL))
         self.start_ts = d.get("start_ts") or self.start_ts
-        self.side = int(d.get("side", 0))
+        side_raw = d.get("side", 0)  # ledger stores side as a display string ("long"/...)
+        self.side = (
+            {"long": 1, "short": -1, "flat": 0}.get(side_raw, 0)
+            if isinstance(side_raw, str)
+            else int(side_raw)
+        )
         self.entry_price = float(d.get("entry_price", 0.0))
         self.entry_ts = d.get("entry_ts", "")
         self.trade_count = int(d.get("trade_count", 0))
@@ -214,6 +219,7 @@ class PaperAccount:
             "entry_ts": self.entry_ts,
             "unrealised_pnl_pct": round(self.unrealised_pct * 100, 3),
             "trade_count": self.trade_count,
+            "win_count": self.win_count,  # persisted so win-rate survives a restart
             "win_rate": round(wr, 3),
         }
 
