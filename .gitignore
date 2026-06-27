@@ -37,3 +37,15 @@ Thumbs.db
 # Signal capture runtime data
 state/signals/
 state/lake_rollup/
+
+# Live paper-trade runtime ledger (per-machine, written by paper_trader)
+state/paper_accounts.json
+state/status.json
+
+# CCE (code-context-engine)
+# CCE local cache (per-machine, not for version control)
+.cce/
+# Claude Code local settings written by cce init
+.claude/settings.local.json
+# CCE init may leave scored-backup snapshots beside ignored state files
+state/*.score-bak
