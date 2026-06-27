@@ -156,6 +156,15 @@ def load_comparison() -> dict:
 
 
 @st.cache_data(ttl=30)
+def load_paper_accounts() -> dict:
+    """The LIVE paper-trade ledger written by paper_trader.py (the real board)."""
+    p = STATE_DIR / "paper_accounts.json"
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
+
+
+@st.cache_data(ttl=30)
 def load_progress() -> dict:
     p = ROOT / "docs" / "PAPER" / "progress.json"
     if not p.exists():
@@ -429,49 +438,44 @@ elif tab_choice == "Market Signals":
 elif tab_choice == "Traffic Light":
     st.title("Traffic Light — Live Strategy Tournament")
     st.markdown(
-        "A **live, public experiment.** Systematic crypto-trading strategies compete "
-        "every day on **out-of-sample** data — fees and slippage included. A challenger "
-        "must beat the reigning strategy for **7 days running** to turn 🟠 orange, then "
-        "hold it for **14 more** to reach 🟢 green and be flagged for promotion "
-        "(a human makes the final call). So far, **none has earned it** — and that null "
-        "result *is* the finding: most strategies that dazzle in a backtest quietly fail "
-        "honest forward testing. Watch it happen in real time. *(Paper trading — no real money.)*"
+        "A **live, public experiment.** Every systematic strategy trades a real-time "
+        "**$1,000 paper account** forward — fees and slippage included. This is the **actual "
+        "live race**, not a backtest: the board moves as positions do. 🟢 = in profit, "
+        "🟠 = still proving itself, 🔴 = trailing the field and at risk of being cut. "
+        "**Buy-and-hold BTC** is shown as the bar to beat. *(Paper trading — no real money.)*"
     )
     with st.expander("How this works"):
         st.markdown(
-            "- **The money:** every strategy paper-trades the same **$1,000** account. "
-            "The leaderboard is just the resulting balance and profit/loss — no made-up score.\n"
-            "- **Out-of-sample:** each strategy is tuned on the first 80% of history and "
-            "trades only the unseen remainder, so we're not rewarding curve-fitting.\n"
+            "- **The money:** every strategy starts at **$1,000** and trades the live feed "
+            "forward. The board is just the resulting balance and P&L — no made-up score.\n"
+            "- **Genuinely out-of-sample:** strategies trade forward in real time, on data "
+            "that didn't exist when they were written — the cleanest possible test (no "
+            "train/test split, nothing to curve-fit).\n"
             "- **Costs are real:** 0.1% taker fee + ~2bp slippage on every entry and exit.\n"
-            "- **The clock:** a challenger needs a higher balance than the champion for 7 "
-            "consecutive daily checks → 🟠, then 14 more ahead → 🟢. Fall behind and it resets.\n"
-            "- **No auto-trading:** a 🟢 only raises an alert for human review; the system "
-            "never switches strategies by itself.\n"
-            "- Recomputed nightly (00:20 UTC) against a self-hosted price lake."
+            "- **The lights:** 🟢 in profit · 🟠 still proving (or middling) · 🔴 the worst "
+            "few, about to be excluded. A strategy stays 🟠 until it has a real track record "
+            "(**14 days live or 20 trades**) before it can be judged or cut.\n"
+            "- **Benchmark:** buy-and-hold BTC — beating that is the real bar.\n"
+            "- **No auto-trading:** the live set is only ever changed by a human.\n"
+            "- Updates every few minutes against a self-hosted price lake."
         )
-    comp = load_comparison()
 
-    if not comp:
-        st.warning("No comparison data yet — the next nightly cycle will populate it.")
+    ledger = load_paper_accounts()
+    accounts = ledger.get("accounts", {})
+    meta = ledger.get("meta", {})
+    bench = ledger.get("benchmark", {})
+
+    if not accounts:
+        st.warning(
+            "The live board is starting up — `paper_trader` hasn't written its first "
+            "tick yet. Accounts begin at $1,000 and accumulate from here."
+        )
     else:
-        _updated = max((v.get("last_updated") or "" for v in comp.values()), default="—")
-        st.caption(f"Each strategy paper-trades $1,000 · last updated {_updated} · recomputed daily 00:20 UTC")
-
-        rows = []
-        for name, info in comp.items():
-            rows.append({
-                "name": name,
-                "is_active": info.get("is_active", False),
-                "light": info.get("light", "RED"),
-                "balance": info.get("balance"),
-                "pnl": info.get("pnl"),
-                "ret": info.get("return_pct"),
-                "trades": info.get("n_trades", 0) or 0,
-                "days": info.get("days_beating", 0) or 0,
-            })
-        # leaderboard order: most money first (unknown balances sink to the bottom)
-        rows.sort(key=lambda r: (r["balance"] is not None, r["balance"] if r["balance"] is not None else -1e9), reverse=True)
+        _updated = meta.get("last_tick_ts", "—")
+        st.caption(
+            f"Live · each strategy trades $1,000 forward · {len(accounts)} in the race · "
+            f"updated {_updated} · BTC regime: {meta.get('regime', '—')}"
+        )
 
         def _money(x, signed=False):
             if x is None:
@@ -479,35 +483,63 @@ elif tab_choice == "Traffic Light":
             sign = "+" if (signed and x >= 0) else ("-" if (signed and x < 0) else "")
             return f"{sign}${abs(x):,.0f}"
 
+        rows = []
+        for name, info in accounts.items():
+            eq = info.get("equity", info.get("balance"))
+            rows.append({
+                "name": name,
+                "light": info.get("light", "ORANGE"),
+                "equity": eq,
+                "pnl": info.get("pnl"),
+                "ret": info.get("return_pct"),
+                "trades": info.get("trade_count", 0) or 0,
+                "win": info.get("win_rate", 0.0) or 0.0,
+                "pos": info.get("side", "flat"),
+            })
+        rows.sort(key=lambda r: (r["equity"] is not None, r["equity"] if r["equity"] is not None else -1e9), reverse=True)
+
         table = [{
             "": LIGHT_EMOJI.get(r["light"], "⚪"),
-            "Strategy": ("👑 " if r["is_active"] else "") + r["name"],
+            "Strategy": r["name"],
             "What it does": STRATEGY_DESC.get(r["name"], "—"),
-            "Balance": _money(r["balance"]),
+            "Balance": _money(r["equity"]),
             "P&L": _money(r["pnl"], signed=True),
             "Return": f"{r['ret']:+.1f}%" if r["ret"] is not None else "—",
             "Trades": r["trades"],
-            "Days ahead": r["days"],
+            "Win %": f"{r['win'] * 100:.0f}%" if r["trades"] else "—",
+            "Now": r["pos"],
         } for r in rows]
+        # buy-and-hold BTC benchmark as the bar to beat
+        if bench.get("balance") is not None:
+            table.append({
+                "": "⚪", "Strategy": "Buy & Hold BTC", "What it does": "benchmark — just hold BTC",
+                "Balance": _money(bench.get("balance")),
+                "P&L": _money((bench.get("balance") or 0) - 1000.0, signed=True),
+                "Return": f"{bench.get('return_pct', 0):+.1f}%",
+                "Trades": "—", "Win %": "—", "Now": "hold",
+            })
         st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
-        st.caption("👑 = current champion (the strategy in play). 🟢 promoted-ready · 🟠 7+ days ahead · 🔴 behind.")
+        st.caption("🟢 in profit · 🟠 still proving / middling · 🔴 worst few, about to be excluded. ⚪ = benchmark.")
 
-        # ── $1,000 balance bars (coloured by light, $1,000 reference line) ──────
-        plotted = [r for r in rows if r["balance"] is not None]
+        # ── balance bars (coloured by light, $1,000 start + buy-and-hold lines) ──
+        plotted = [r for r in rows if r["equity"] is not None]
         if plotted:
             st.markdown("---")
-            st.subheader("$1,000 paper-trade — where each account stands")
+            st.subheader("$1,000 live paper accounts — where each stands now")
             fig = go.Figure()
             fig.add_trace(go.Bar(
-                x=[("👑 " if r["is_active"] else "") + r["name"] for r in plotted],
-                y=[r["balance"] for r in plotted],
+                x=[r["name"] for r in plotted],
+                y=[r["equity"] for r in plotted],
                 marker_color=[LIGHT_COLOURS.get(r["light"], "#888") for r in plotted],
-                text=[_money(r["balance"]) for r in plotted],
+                text=[_money(r["equity"]) for r in plotted],
                 textposition="outside",
-                hovertemplate="%{x}<br>balance %{y:$,.0f}<extra></extra>",
+                hovertemplate="%{x}<br>%{y:$,.0f}<extra></extra>",
             ))
             fig.add_hline(y=1000, line_dash="dash", line_color="#9b93b5",
                           annotation_text="$1,000 start", annotation_position="right")
+            if bench.get("balance"):
+                fig.add_hline(y=bench["balance"], line_dash="dot", line_color="#f5a623",
+                              annotation_text="buy & hold BTC", annotation_position="left")
             fig.update_layout(height=380, yaxis_title="account value (USD)", xaxis_title="",
                               margin=dict(t=20, b=80), plot_bgcolor="rgba(0,0,0,0)",
                               paper_bgcolor="rgba(0,0,0,0)")
