@@ -137,6 +137,18 @@ REGISTRY: dict[str, dict] = {
             "stop_loss_pct": [3.0, 5.0, 8.0],
         },
     },
+    "bb_rsi_dip": {
+        "cls": "local_system.strategies.bb_rsi_dip.BbRsiDipStrategy",
+        "grid": {
+            "bb_period": [15, 20, 25],
+            "bb_std": [2.0, 2.5],
+            "rsi_period": [7, 14],
+            "rsi_buy": [20.0, 25.0, 30.0],
+            "target_pct": [3.0, 5.0, 8.0, 12.0],
+            "stop_loss_pct": [0.0, 10.0, 15.0],
+            "max_hold_days": [0, 30],
+        },
+    },
 }
 
 
