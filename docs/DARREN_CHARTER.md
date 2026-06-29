@@ -19,11 +19,17 @@ slow-building** rather than veering off. Companion to `HERMES_SETUP_2026-06-15.m
    substantial code is delegated to the interactive Claude Code session within
    the daily budget; Darren orchestrates and records, Claude builds.
 
-## Hard daily limits
-- **≤ 2 web searches per day.**
-- **≤ 1 Claude Code interactive run per day** (subscription session via the REPL —
-  **never `claude -p`**, which bills API and is expensive).
-- These budgets are spent *inside* the daily R&D window, not ad hoc.
+## Resource budgets (per 5-hour research window)
+*(Revised 2026-06-29 — loosened from per-day to per-window to give Darren more
+room to research, now that the live paper board exists as a safety net.)*
+- **≤ 1 Claude Code interactive run per 5-hour window** (subscription REPL —
+  **never `claude -p`**, which bills API). Aligning to Claude's 5-hour usage
+  reset means each window gets one run — naturally bounded to the subscription
+  quota (flat cost), so several research cycles a day are fine without runaway
+  spend.
+- **≤ 2 web searches per 5-hour window.** Web search is an enabled, expected tool
+  for developing hypotheses — use it, within the cap.
+- A research window may run up to **5 hours**; budgets are spent inside it.
 
 ## Daily rhythm (one scheduled routine)
 1. **Round-up first** — health across all systems: `cryptolake.service`,
@@ -31,10 +37,41 @@ slow-building** rather than veering off. Companion to `HERMES_SETUP_2026-06-15.m
    disk/mem. Report status and any outage.
 2. **Then the "dream" window** — bounded R&D time: review the lake, the signal
    digest, and the strategy leaderboard; form ONE hypothesis; optionally spend the
-   day's ≤2 searches + ≤1 Claude run to develop/analyse it; backtest a **simple**
+   window's ≤2 searches + ≤1 Claude run to develop/analyse it; backtest a **simple**
    candidate through the *existing* harness (`cli.reflect` / `backtester` /
-   `registry`). If it survives robustly, add it as a **challenger** (or surface it
-   for review). Target ≈ **one new simple strategy per week**.
+   `registry`). If it **clears the rigor gate** (below), add it as a **challenger**
+   (or surface it for review). Target ≈ **one new simple strategy per week**.
+
+## Expanded mandate (2026-06-29)
+The live $1,000 paper board now exists as a forward-truth safety net, so Darren
+gets more rope to explore — paired with a hard rigor gate, because broad search
+multiplies false positives.
+- **Broaden the universe.** Search beyond BTC: the **full crypto lake universe**
+  (~19 symbols already collected) is fair game.
+- **TradFi research track (alongside, NOT a second lake).** Explore equities /
+  indices / FX / commodities using **public data (yfinance/free APIs) for
+  backtesting only** — research, not a 24/7 collector or parquet pipeline. Do not
+  replicate cryptolake. A TradFi idea graduates to a live paper account only after
+  it clears the rigor gate *and* the Captain approves. (Also feeds the
+  dissertation's crypto-vs-efficient-markets comparison.)
+- **Event/opportunity research via the events DB.** Extend the scaffolded
+  `local_system/signals/news/event_db.py` (the historical+live event table with
+  per-event market reaction). Add the `EXTEND` hooks: LLM categorisation,
+  sentiment/direction, TradFi reactions. This points at the one validated edge
+  (event-driven volatility) and the short-term/opportunistic direction.
+- **Rigor gate — a result is NOT "robust" / NOT a challenger unless ALL hold:**
+  1. **Full-history first** — headline number is the full window (match `reflect`:
+     ~3y, 1h, 80/20 WF); short-window results are a secondary lens only.
+  2. **Sign-consistency** across rolling sub-periods / multiple assets — a fluke
+     shows up in one window/asset, a real edge in several.
+  3. **Sample sanity** — quote trade count; treat <~30 trades, >~75% win, or
+     Sharpe >3 as likely overfit until proven otherwise.
+  4. **Forward cross-check** — the live paper board (`state/paper_accounts.json`)
+     is the arbiter; backtest only *proposes*. If forward contradicts backtest,
+     the strategy loses the benefit of the doubt.
+  5. **Declare the search size** — "best of N backtests" is meaningless without N.
+  6. **Fixed methodology** — don't vary window/resample day to day; vary the
+     hypothesis, not the measuring stick.
 
 ## Runtime & scheduling
 - **Darren runs as a persistent service.** Hermes is launched under systemd
@@ -67,6 +104,9 @@ slow-building** rather than veering off. Companion to `HERMES_SETUP_2026-06-15.m
 ## Hard guardrails (never)
 - Never touch `cryptolake.service` or the lake data layout.
 - Never auto-switch the live active strategy (promotion = human decision).
-- Never exceed the daily search / Claude-run budget.
-- Never jump to a complex multi-factor strategy as the first attempt.
+- Never exceed the per-window search / Claude-run budget; never use `claude -p`.
+- Never call a result "robust" or add a challenger without clearing the full
+  rigor gate above (forward board is the arbiter, not a single backtest).
+- For TradFi: research/backtest on public data only — do **not** build a new
+  collector/lake or write into the crypto lake.
 - Use the existing harness; don't rebuild what's there.
