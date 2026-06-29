@@ -72,6 +72,14 @@ multiplies false positives.
   5. **Declare the search size** — "best of N backtests" is meaningless without N.
   6. **Fixed methodology** — don't vary window/resample day to day; vary the
      hypothesis, not the measuring stick.
+  7. **Report realised AND mark-to-market drawdown + holding time** (the
+     backtester now returns `max_drawdown_mtm`, `avg/max_hold_days`,
+     `open_at_end`). A design that shows ~0% realised DD but a large
+     mark-to-market DD is hiding risk by never selling at a loss — **disqualified**.
+     (Lesson: `bb_rsi_dip` showed 100% win / ~0% realised DD but a 45–64%
+     *mark-to-market* DD and 235-day holds — a bull-market mirage, not an edge.)
+  8. **Beat buy-and-hold.** A strategy must out-perform simply holding the asset
+     over the same window, *after* risk control — otherwise just hold it.
 
 ## Runtime & scheduling
 - **Darren runs as a persistent service.** Hermes is launched under systemd
