@@ -127,6 +127,8 @@ STRATEGY_DESC = {
     "mtf_bb_vol": "Bollinger bands gated by a relative-volume spike",
     "regime_bb": "Bollinger bands gated by ADX trend strength + volume",
     "ensemble": "Votes across all the other strategies; trades on consensus",
+    "bb_rsi_dip": "Buys dips below the lower Bollinger band when RSI is oversold; exits at a fixed % target",
+    "xsec_momentum": "Market-neutral: ranks the whole crypto universe, longs the strongest / shorts the weakest (risk-parity, vol-targeted)",
 }
 REGIME_COLOURS = {
     "bull": "rgba(0,200,83,0.12)",

@@ -277,8 +277,11 @@ def _load_ledger(strategies) -> tuple[dict, dict]:
     return accounts, benchmark
 
 
-def _save_ledger(accounts: dict, benchmark: dict, price: float, bar_ts: str, regime: str) -> None:
+def _save_ledger(accounts: dict, benchmark: dict, price: float, bar_ts: str,
+                 regime: str, extra_accounts: dict | None = None) -> None:
     acc_dicts = {name: a.to_dict() for name, a in accounts.items()}
+    if extra_accounts:
+        acc_dicts.update(extra_accounts)   # portfolio books (e.g. xsec_momentum)
     lights = assign_lights(acc_dicts)
     for name, light in lights.items():
         acc_dicts[name]["light"] = light
@@ -295,6 +298,12 @@ def _save_ledger(accounts: dict, benchmark: dict, price: float, bar_ts: str, reg
         "accounts": acc_dicts,
         "benchmark": benchmark,
     }
+    # persist the portfolio book's inception so it's stable across restarts
+    if extra_accounts:
+        for a in extra_accounts.values():
+            if a.get("kind") == "portfolio" and a.get("start_ts"):
+                payload["portfolio_inception"] = a["start_ts"]
+                break
     _atomic_write(ACCOUNTS_FILE, json.dumps(payload, indent=2))
     # compact per-tick snapshot for the /status skill
     _atomic_write(STATUS_FILE, json.dumps({
@@ -354,6 +363,16 @@ async def run_loop() -> None:
         flush=True,
     )
 
+    # Cross-sectional momentum portfolio book — refreshed ~hourly (heavy: loads the
+    # universe daily panel). Inception persisted in the ledger so it's stable.
+    lake_root = os.environ.get("LAKE_ROOT", "")
+    portfolio_inception = (
+        (json.loads(ACCOUNTS_FILE.read_text()).get("portfolio_inception") if ACCOUNTS_FILE.exists() else None)
+        or _now_iso()
+    )
+    portfolio_cache: dict = {}
+    portfolio_refresh_every = 12  # ticks (~1h at 300s)
+
     tick = 0
     while True:
         tick += 1
@@ -375,7 +394,19 @@ async def run_loop() -> None:
                 acct.update_unrealised(price)
 
             benchmark = _update_benchmark(benchmark, price)
-            _save_ledger(accounts, benchmark, price, bar_ts, regime)
+
+            # Refresh the cross-sectional momentum book on the first tick and ~hourly
+            if lake_root and (tick == 1 or tick % portfolio_refresh_every == 0):
+                try:
+                    from local_system.live_portfolio import NAME as PF_NAME, compute_book
+                    book = compute_book(portfolio_inception, lake_root)
+                    if book:
+                        portfolio_cache = {PF_NAME: book}
+                except Exception as pf_exc:  # noqa: BLE001
+                    print(f"[paper_trader] portfolio book refresh failed: {pf_exc}", flush=True)
+
+            _save_ledger(accounts, benchmark, price, bar_ts, regime,
+                         extra_accounts=portfolio_cache or None)
 
             leader = max(accounts.values(), key=lambda a: a.equity)
             print(
