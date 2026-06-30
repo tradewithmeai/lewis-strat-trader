@@ -204,6 +204,46 @@ def timeseries_trend_backtest(
 
 # ── score builders ────────────────────────────────────────────────────────────
 
+def cash_and_carry_backtest(
+    funding_daily: pd.DataFrame,
+    signal_lookback: int = 7,
+    threshold_bps: float = 0.0,
+    cost_bps_per_leg: float = 5.0,
+    periods_per_year: int = 365,
+) -> dict:
+    """Delta-hedged funding-carry harvest across a universe.
+
+    `funding_daily`: DataFrame [day x asset] of the mean 8h funding RATE (a
+    fraction, e.g. 0.0001 = 1bp). Funding settles 3×/day. For each asset we hold
+    a DELTA-NEUTRAL carry position (long spot / short perp, or the reverse) sized
+    to sit on the funding-receiving side, so directional price P&L cancels and the
+    return is the funding income minus costs:
+
+      position p ∈ {+1, -1, 0} = sign of trailing-`signal_lookback` mean funding,
+      taken only when its magnitude clears `threshold_bps` (else flat — not worth
+      the cost). Decided on prior info (shifted), so no look-ahead.
+      daily income = p · (funding_rate · 3);  cost charged on position changes
+      (delta-neutral = 2 legs). Equal weight 1/N across the universe.
+
+    LIMITATIONS (stated honestly): assumes a perfect delta hedge — ignores basis
+    risk, hedge/execution slippage beyond the leg cost, and the borrow cost of
+    shorting spot. Real harvest will be lower; this is the funding-income ceiling
+    net of rebalancing cost.
+    """
+    sig = funding_daily.rolling(signal_lookback).mean()
+    pos = np.sign(sig)
+    pos = pos.where((sig.abs() * 3) > (threshold_bps / 1e4), 0.0)
+    pos = pos.shift(1).fillna(0.0)                      # act on prior info
+    income = pos * (funding_daily * 3.0)                # delta-neutral: funding only
+    turns = pos.diff().abs().fillna(pos.abs())
+    cost = turns * 2.0 * (cost_bps_per_leg / 1e4)       # 2 legs per delta-neutral position
+    per_asset = income - cost
+    port = per_asset.mean(axis=1).dropna()              # equal-weight 1/N
+    eq = (1 + port.fillna(0)).cumprod()
+    return {"stats": portfolio_stats(port, periods_per_year), "equity": eq,
+            "returns": port, "avg_active": float((pos != 0).sum(axis=1).mean())}
+
+
 def momentum_scores(prices: pd.DataFrame, lookback_days: int = 30,
                     skip_days: int = 0) -> pd.DataFrame:
     """Cross-sectional momentum score = trailing return over `lookback_days`,
