@@ -1,58 +1,69 @@
 """
 event_db.py — historical + live event database with per-event metadata + market reaction.
 
-SCAFFOLD (I-build / Darren+Claude-extend). Normalises the captured news/social
-stream (state/signals/news.jsonl, written by the news capture suite) into one
-queryable table where every event carries:
-  - identity + provenance (id, ts, source, url, author)
-  - text (title, summary)
-  - asset + category tags
-  - the RESEARCH-CRITICAL part: the market REACTION — forward return on the
-    relevant asset over +1h / +4h / +24h after the event, plus a |move| column
-    (the volatility proxy that ties to the one validated edge: event-driven vol).
+SCAFFOLD (I-build / Darren+Claude-extend). Normalises events from two sources
+into one queryable table with per-event market REACTION (forward return on the
+relevant asset over +1h / +4h / +24h, plus |move|_4h — the volatility proxy):
 
-Output: state/signals/events.parquet  (rebuilt idempotently from news.jsonl).
+  1. Live feed   — state/signals/news.jsonl (RSS crypto media + Trump live capture)
+  2. Deep archive — state/signals/trump_events.parquet (~34k Trump posts since 2022,
+     pre-classified with topic flags + sentiment + market_relevant/is_noise). This
+     is the multi-regime depth the validated Trump-vol study used.
+
+Output: state/signals/events.parquet  (rebuilt idempotently; deduped by event_id).
 Query:  load_event_table() -> DataFrame.
 
 EXTENSION POINTS for Darren + Claude (grep 'EXTEND'):
-  - LLM category classification (replace the keyword mapper)
-  - sentiment / directional label (currently left null)
+  - more LEADING sources (macro prints, regulatory filings, mainstream breaking
+    news) — the current live feed is crypto-media-heavy and tends to LAG price
+  - LLM sentiment / directional label for the RSS items (Trump archive has sentiment)
   - TradFi reactions via public data (currently crypto-lake only)
-  - additional sources (add NewsAdapters upstream in local_system/signals/news/)
+  - non-event baseline (random windows) so "elevated vol" is a real comparison
+  - null-out reactions whose horizon hasn't elapsed yet (recent events read ~0)
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
+from datetime import date, timedelta
 
 import pandas as pd
 
 from local_system.signals import SIGNALS_DIR
 
 NEWS_LOG = SIGNALS_DIR / "news.jsonl"
+TRUMP_EVENTS = SIGNALS_DIR / "trump_events.parquet"
 EVENTS_PARQUET = SIGNALS_DIR / "events.parquet"
 
-HORIZONS_H = (1, 4, 24)  # forward-return horizons in hours
+HORIZONS_H = (1, 4, 24)
 
-# tag -> canonical lake symbol (EXTEND: add tradfi tickers once public-data join lands)
 _ASSET_FROM_TAG = {"btc": "BTCUSDT", "eth": "ETHUSDT", "sol": "SOLUSDT"}
-# events with no explicit asset but a macro/policy flavour are priced against BTC
-_MACRO_TAGS = {"fed", "macro", "regulation", "trump", "hack"}
+_MACRO_TAGS = {"fed", "macro", "regulation", "trump", "hack", "china", "tariff",
+               "dollar", "energy", "geopolitics", "fiscal", "directive"}
 
-# coarse category from existing keyword tags (EXTEND: LLM classifier)
 _CATEGORY_FROM_TAG = {
-    "fed": "monetary",
-    "macro": "macro",
-    "regulation": "regulation",
-    "hack": "security",
-    "trump": "politics",
+    "fed": "monetary", "macro": "macro", "regulation": "regulation",
+    "hack": "security", "trump": "politics", "china": "trade", "tariff": "trade",
+    "dollar": "macro", "energy": "macro", "geopolitics": "geopolitics",
+    "fiscal": "fiscal", "directive": "directive",
 }
 
+# Trump archive topic column -> tag
+_TRUMP_TOPIC_TAG = {
+    "topic_tariffs_trade": "tariff", "topic_china": "china", "topic_fed_rates": "fed",
+    "topic_crypto": "crypto", "topic_dollar": "dollar", "topic_energy_oil": "energy",
+    "topic_markets": "markets", "topic_taxes_fiscal": "fiscal",
+    "topic_geopolitics": "geopolitics", "topic_market_directive": "directive",
+    "topic_reassurance": "reassurance",
+}
+# priority order for assigning a single category to a Trump post
+_TRUMP_CATEGORY_ORDER = ["directive", "fed", "tariff", "china", "dollar",
+                         "energy", "geopolitics", "fiscal"]
 
-def _event_id(rec: dict) -> str:
-    key = (rec.get("url") or "").strip() or f"{rec.get('source')}|{rec.get('title')}"
+
+def _event_id(url: str, source: str, title: str) -> str:
+    key = (url or "").strip() or f"{source}|{title}"
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
 
@@ -61,7 +72,7 @@ def _primary_asset(tags: list[str]) -> str | None:
         if t in _ASSET_FROM_TAG:
             return _ASSET_FROM_TAG[t]
     if any(t in _MACRO_TAGS for t in tags):
-        return "BTCUSDT"  # macro/policy events priced against BTC by default
+        return "BTCUSDT"
     return None
 
 
@@ -72,32 +83,62 @@ def _category(tags: list[str]) -> str:
     return "other"
 
 
-def _load_news() -> list[dict]:
+def _load_news_records() -> list[dict]:
+    """Records from the live feed (news.jsonl)."""
     if not NEWS_LOG.exists():
         return []
     out = []
     for line in NEWS_LOG.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        tags = d.get("tags") or []
+        out.append({
+            "ts": d.get("ts"), "source": d.get("source", ""),
+            "title": d.get("title", ""), "summary": d.get("summary", ""),
+            "url": d.get("url", ""), "author": d.get("author", ""),
+            "tags": tags, "category": _category(tags),
+            "sentiment": None, "market_relevant": None, "is_noise": None,
+        })
     return out
 
 
-def _price_series(asset: str):
-    """1h close series for an asset over all history, or None if unavailable.
+def _load_trump_archive() -> list[dict]:
+    """Records from the deep Trump archive (trump_events.parquet, ~34k posts)."""
+    if not TRUMP_EVENTS.exists():
+        return []
+    df = pd.read_parquet(TRUMP_EVENTS)
+    out = []
+    for r in df.itertuples(index=False):
+        d = r._asdict()
+        tags = ["trump"] + [tag for col, tag in _TRUMP_TOPIC_TAG.items() if d.get(col)]
+        category = "politics"
+        for key in _TRUMP_CATEGORY_ORDER:
+            if key in tags:
+                category = _CATEGORY_FROM_TAG.get(key, "politics")
+                break
+        text = str(d.get("text", "") or "")
+        out.append({
+            "ts": d.get("ts"), "source": "trump:archive",
+            "title": text[:200], "summary": text, "url": d.get("url", ""),
+            "author": "realDonaldTrump", "tags": tags, "category": category,
+            "sentiment": d.get("sentiment"),
+            "market_relevant": bool(d.get("market_relevant")),
+            "is_noise": bool(d.get("is_noise")),
+        })
+    return out
 
-    Crypto only for now (reads the lake). EXTEND: branch to a public-data loader
-    (yfinance etc.) for TradFi tickers so their events get reactions too."""
+
+def _price_series(asset: str, start: date):
+    """1h close series for an asset from `start` to today, or None. Crypto only.
+    EXTEND: branch to a public-data loader (yfinance) for TradFi tickers."""
     try:
-        from datetime import date, timedelta
-
         from local_system.lake_adapter import load_bars, resample_ohlcv
 
-        end = date.today()
-        start = end - timedelta(days=365 * 4)
-        df = load_bars(asset, start, end, backfill_only=True)
+        df = load_bars(asset, start, date.today(), backfill_only=True)
         if df.empty:
             return None
         return resample_ohlcv(df, "1h")["close"]
@@ -105,14 +146,12 @@ def _price_series(asset: str):
         return None
 
 
-def _forward_returns(close: pd.Series, ts: pd.Timestamp) -> dict:
-    """Return {ret_1h, ret_4h, ret_24h, abs_move_4h} using as-of price lookups."""
+def _forward_returns(close, ts: pd.Timestamp) -> dict:
     out = {f"ret_{h}h": None for h in HORIZONS_H}
     out["abs_move_4h"] = None
     if close is None or close.empty:
         return out
     try:
-        idx = close.index
         p0 = close.asof(ts)
         if pd.isna(p0) or p0 == 0:
             return out
@@ -127,55 +166,68 @@ def _forward_returns(close: pd.Series, ts: pd.Timestamp) -> dict:
     return out
 
 
-def build_event_table() -> pd.DataFrame:
-    """Read news.jsonl, enrich, join market reaction, write events.parquet."""
-    records = _load_news()
+def build_event_table(include_trump_archive: bool = True) -> pd.DataFrame:
+    """Merge live feed + Trump archive, join market reaction, write events.parquet."""
+    records = _load_news_records()
+    if include_trump_archive:
+        records += _load_trump_archive()
     if not records:
-        print("[event_db] no news.jsonl yet — nothing to build")
+        print("[event_db] no events to build")
         return pd.DataFrame()
 
-    # cache one price series per asset so we load the lake once per symbol
-    price_cache: dict[str, object] = {}
     rows = []
     for rec in records:
         tags = rec.get("tags") or []
-        asset = _primary_asset(tags)
         ts = pd.to_datetime(rec.get("ts"), utc=True, errors="coerce")
-        row = {
-            "event_id": _event_id(rec),
+        if pd.isna(ts):
+            continue
+        rows.append({
+            "event_id": _event_id(rec.get("url", ""), rec.get("source", ""), rec.get("title", "")),
             "ts": ts,
-            "captured_at": rec.get("captured_at", ""),
             "source": rec.get("source", ""),
             "title": rec.get("title", ""),
             "summary": rec.get("summary", ""),
             "url": rec.get("url", ""),
             "author": rec.get("author", ""),
             "tags": ",".join(tags),
-            "primary_asset": asset,
-            "category": _category(tags),
-            "sentiment": None,   # EXTEND: LLM
-            "direction": None,   # EXTEND: LLM
-        }
-        if asset and pd.notna(ts):
-            if asset not in price_cache:
-                price_cache[asset] = _price_series(asset)
-            row.update(_forward_returns(price_cache[asset], ts))
-        else:
-            row.update({f"ret_{h}h": None for h in HORIZONS_H})
-            row["abs_move_4h"] = None
-        rows.append(row)
+            "primary_asset": _primary_asset(tags),
+            "category": rec.get("category") or _category(tags),
+            "sentiment": rec.get("sentiment"),
+            "market_relevant": rec.get("market_relevant"),
+            "is_noise": rec.get("is_noise"),
+        })
 
-    df = pd.DataFrame(rows).dropna(subset=["ts"]).sort_values("ts").reset_index(drop=True)
-    df = df.drop_duplicates(subset=["event_id"], keep="last")
+    df = pd.DataFrame(rows).sort_values("ts").drop_duplicates(subset=["event_id"], keep="last")
+
+    # Load one price series per asset, from that asset's earliest event (so the
+    # 4y+ Trump archive gets reactions without loading the lake for assets that
+    # only appear in the recent live feed).
+    price_cache: dict[str, object] = {}
+    for asset in df["primary_asset"].dropna().unique():
+        earliest = df.loc[df["primary_asset"] == asset, "ts"].min().date() - timedelta(days=7)
+        price_cache[asset] = _price_series(asset, earliest)
+
+    react = []
+    for _, row in df.iterrows():
+        asset = row["primary_asset"]
+        if asset and asset in price_cache:
+            react.append(_forward_returns(price_cache[asset], row["ts"]))
+        else:
+            r = {f"ret_{h}h": None for h in HORIZONS_H}
+            r["abs_move_4h"] = None
+            react.append(r)
+    df = pd.concat([df.reset_index(drop=True), pd.DataFrame(react)], axis=1)
+
     SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
     df.to_parquet(EVENTS_PARQUET, index=False)
-    n_react = int(df["ret_4h"].notna().sum()) if "ret_4h" in df else 0
-    print(f"[event_db] wrote {len(df)} events -> {EVENTS_PARQUET} ({n_react} with market reaction)")
+    n_react = int(df["ret_4h"].notna().sum())
+    span = f"{df['ts'].min().date()} -> {df['ts'].max().date()}"
+    print(f"[event_db] wrote {len(df)} events ({span}) -> {EVENTS_PARQUET} "
+          f"({n_react} with market reaction)")
     return df
 
 
 def load_event_table() -> pd.DataFrame:
-    """Load the built events table for querying (empty frame if not built yet)."""
     if not EVENTS_PARQUET.exists():
         return pd.DataFrame()
     return pd.read_parquet(EVENTS_PARQUET)
