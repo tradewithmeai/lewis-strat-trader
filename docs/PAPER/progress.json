@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-04",
+  "updated": "2026-06-30",
   "_note_u8": "Undergrad IMRaD draft complete + committed 2026-06-04; only public submission (u9) remains.",
   "note": "Progress across the three rigor tiers (see THESIS_STRUCTURE.md / ROADMAP.md). status: done | active | todo. Updated nightly by the /signoff routine. Drives the Research Progress view in dashboard.py.",
   "tiers": {
@@ -21,6 +21,7 @@
       "title": "Master's — AI-augmented research paper",
       "milestones": [
         {"id": "m1", "name": "Worklog evidence base (human-direction vs AI-execution record)", "status": "active", "date": "2026-06-02"},
+        {"id": "m1b", "name": "Systematic strategy research log: single-asset null + cross-sectional/portfolio reframing (docs/PAPER/STRATEGY_RESEARCH.md); live forward board + rigor gate", "status": "active", "date": "2026-06-30"},
         {"id": "m2", "name": "Quantify the division of labour from the worklog + commit log", "status": "todo", "date": null},
         {"id": "m3", "name": "AI-augmentation methodology writeup (the 'boost' case study)", "status": "todo", "date": null},
         {"id": "m4", "name": "Submission (AI / meta-science venue)", "status": "todo", "date": null}

@@ -970,7 +970,7 @@ remain in the local archive. Nothing else lost.
 (VPS /tmp/lake_*, local D:/lake_ship*); then Hermes job spec. Local is superseded
 (VPS = system of record, Drive backup verified) but not yet formally retired.
 
-## 2026-06-25 15:50 UTC — Backtest data cliff at June 11: lake consolidation gap closed + daily timer [commit pending]
+## 2026-06-25 15:50 UTC — Backtest data cliff at June 11: lake consolidation gap closed + daily timer [commit 9294fa8]
 
 **Context:** Darren's first persistent dream report (now firing on schedule) flagged
 that backtests "stop at 2026-06-11". Investigation (read-only over PowerShell→ssh)
@@ -1022,3 +1022,95 @@ consolidation timer. Wrote a hardened consolidator `local_system/tools/consolida
 **Next:** daily timer maintains freshness (~2-day lag). Optional later: upstream the
 memory fix into crypto-lake-rs `archive.py`; address the minor `>50`-file rule that
 misclassifies the *current* partial day as backfill early each UTC day.
+
+## 2026-06-27 23:14 UTC — Live paper-trade board replaces the backtest leaderboard [commits 1d3fca1, af6f02e, 979f46b, 7882954]
+
+**Context:** Five daily "dream" reports from Darren were honest but stuck — all
+re-deriving "breakout is least-bad" on BTC. Root cause surfaced two problems:
+(1) the public dashboard's traffic-light leaderboard was backtest-derived, and
+its GREEN meant "active incumbent", not "profitable" — `breakout` showed GREEN
+at -12% while better strategies were RED; (2) the 80/20 train/test split and
+single-asset framing were the wrong lens. User reframed: show a LIVE $1,000
+paper-trade race, drop the 80/20 for the live board, simplify the lights
+(green=profit, orange=potential, red=about-to-be-excluded).
+
+**Did:** Reworked `paper_trader.py` into the live engine — all 11 registry
+strategies, each a persistent compounding $1,000 account, no train/test split
+(live forward IS out-of-sample), buy-and-hold BTC benchmark, atomic ledger
+(`state/paper_accounts.json`). Added `live_board.py` (profit-based lights:
+green=in profit, red=worst-3 past warm-up, orange=otherwise; warm-up = 14 days
+or 20 trades). Repointed the dashboard leaderboard from `comparison.json` to the
+live ledger. Stood it up as `paper-trader.service` (systemd --user,
+Restart=always, MemoryMax=2G).
+
+**Tested:** Smoke-tested on the VPS: 11 strategies fit + first tick wrote a valid
+ledger. Caught and fixed a reload crash — `to_dict()` stored `side` as a string
+but `load()` did `int(side)` → ValueError on restart with an open position;
+mapped string→int and persisted `win_count`. Verified the exact restart path is
+now crash-safe (re-fit + tick, no traceback). 12 accounts incl. benchmark,
+updating every 5 min.
+
+**Decided:** Demoted `reflect`/`comparison.json` to the "lab" (vets proposed
+strategies only); the public board is now the live race. Deployed via scp then
+reconciled git: local/GitHub/VPS had diverged at c6052aa; brought Darren's
+unpushed Trump commit across via `git am` of a patch (VPS deploy key is
+read-only), pushed, reset VPS to origin. Gitignored the runtime ledger.
+
+**Dead-ends:** None major; the side-serialization bug was the one real defect.
+
+**Next:** Watch the board accumulate (needs ~14d warm-up to mean anything).
+
+## 2026-06-30 05:30 UTC — Strategy search reframed: single-asset timing is the empty pond; cross-sectional/portfolio is the edge [commits a8a844c..f6013a8]
+
+**Context:** Darren's broadened search (full crypto universe, then TradFi) kept
+returning nulls — and a purpose-built `bb_rsi_dip` (Bollinger+RSI dip-buy, fixed
+%-target) looked spectacular (100% win, +57%/+137%) but was a no-stop artefact.
+User asked to widen the net to commodities, then to run a literature search to
+decide whether this is a wild goose chase or a framing error.
+
+**Did:** (1) Built the event/opportunity infra: `event_db.py` normalising the
+news stream + the deep Trump archive (34k posts, 2022+) into a queryable table
+with per-event market reaction; added mark-to-market drawdown + holding-time to
+the backtester; `tradfi_data.py` (yfinance loader so every strategy runs on
+commodities/indices/FX). (2) Ran event study (in-office split): reproduced the
+papers — China posts → negative BTC drift (t≈-2.3), tariff/China → elevated 1-4h
+vol — but directional effect (~0.2%) < cost (0.24%); Darren's overlay test came
+back a clean null (p≈0.07 vs random-suppression). (3) TradFi transfer of crypto
+strategies across 8 commodities+indices: 2/32 beat buy-and-hold ≈ chance. (4)
+Literature search → diagnosis: single-asset directional timing vs buy-and-hold
+is the documented empty pond; real edges are cross-sectional/market-neutral
+(AQR factor premia; crypto X-sec momentum + funding carry) and diversified-trend
+(Moskowitz/Ooi/Pedersen — basket Sharpe>1, single-market weak). (5) Built
+`portfolio_backtester.py` (cross-sectional rank-and-trade, diversified
+time-series trend, delta-hedged cash-and-carry; risk-parity, vol-target overlay,
+per-year Sharpe, bootstrap CI) and ran three gated tests.
+
+**Tested (gated, 3y / multi-regime):**
+- Crypto X-sectional momentum 60d, risk-parity, vol-targeted 15%: Sharpe 0.91
+  (95% CI -0.15..1.89), 17% vol / -19% DD, market-neutral — but per-year decays
+  2.6→1.2→0.4→**-0.7 (2026)**; CI spans zero. Beat the long benchmark in 2025/26.
+- Funding cash-and-carry (delta-neutral, smoothed): Sharpe 8.19 (CI 6.25..10.54,
+  first to clear zero) BUT only +5.2%/yr (idealised ceiling), 0.6% vol is a
+  perfect-hedge artefact (basis-blowout tail unmodelled), negative in 2026.
+- TradFi diversified trend (16 markets, risk-parity, vol-targeted): Sharpe ~0.26,
+  textbook crisis alpha (+2008, +2022) but sub-benchmark standalone — needs the
+  50-100 markets the literature uses.
+
+**Decided:** Reframing validated "in kind, not degree" — real but immature
+phenomena (market-neutrality, carry income, crisis alpha), limited by
+decay/breadth/significance, not overfitting. Forward-validate the best lead:
+wired crypto X-sec momentum onto the live board as a market-neutral `xsec_momentum`
+account (`live_portfolio.py`, recomputed hourly, vol-targeted, $1000 from a
+persisted inception). Cash-and-carry documented but NOT deployed (can't faithfully
+mark a delta-hedged book on a spot paper board; tail risk unmodelled). Wrote it
+all up in `docs/PAPER/STRATEGY_RESEARCH.md`. Expanded Darren's charter (per-window
+budgets, full crypto + TradFi research track, events DB, the rigor gate with
+mark-to-market DD + beat-buy-and-hold) and handed over with breadth (trend
+markets) as the priority open thread.
+
+**Dead-ends:** `bb_rsi_dip` no-stop (hidden 45-64% MtM DD, 235d holds — bull
+mirage); event-driven directional overlay (sub-cost, indistinguishable from
+random); crypto strategies transplanted to TradFi (≈ chance). All recorded.
+
+**Next:** Darren grinds trend breadth + cross-sectional refinement within the
+gate; watch `xsec_momentum`'s forward record (does the 2026 decay continue?).
