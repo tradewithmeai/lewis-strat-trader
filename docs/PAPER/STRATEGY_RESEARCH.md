@@ -141,6 +141,30 @@ Findings, honestly:
    own benchmark (0.41). Consistent with the literature: at 16 markets it can't
    reach the documented Sharpe>1 that needs 50–100 markets across asset classes.
 
+### Cash-and-carry (delta-hedged funding harvest, 2026-06-30)
+
+Followed up the carry result with the *correct* structure: a per-asset
+delta-neutral position (long spot / short perp on the funding-receiving side) so
+price P&L cancels and the return is funding income net of flip cost
+(`cash_and_carry_backtest`), over 3y of funding for 12 symbols.
+
+| config | Sharpe (95% CI) | ann ret | ann vol | maxDD | per-year |
+|---|---|---|---|---|---|
+| smoothed (lb7, 5bp/leg) | **8.19** (6.25, 10.54) | +5.2% | 0.6% | −1.6% | 12.7 / 15.5 / 3.3 / **−7.6** |
+| high-cost stress (10bp/leg) | 3.81 (1.14, 6.2) | +2.6% | 0.7% | −3.0% | 6.2 / 9.7 / −6.0 / −6.8 |
+
+**The first result with a bootstrap CI clearing zero** — funding income is a
+*genuine, persistent* edge (strongly positive 2023–25). **But the Sharpe of 8 is
+an artefact, not a prize:** (1) the absolute return is only ~+5%/yr and that is
+the idealised *ceiling* — real net is low-single-digits once basis risk, spot
+borrow, and hedge slippage (unmodelled) are paid; (2) the 0.6% vol assumes a
+*perfect* hedge and so omits the one risk that matters — the basis/funding
+blowout during liquidation cascades that actually ruins carry traders; (3) it
+still went **negative in 2026**. Verdict: **real but marginal** — a low-single-
+digit uncorrelated income stream, operationally heavy (perp+spot+continuous
+hedge), and not faithfully representable on the spot paper board, so it is
+documented rather than deployed.
+
 **Conclusion:** single-asset directional timing produced artefacts; the
 portfolio/cross-sectional reframing produced *weak-but-structurally-genuine*
 phenomena (market-neutrality, carry income, crisis alpha) whose limitation is
