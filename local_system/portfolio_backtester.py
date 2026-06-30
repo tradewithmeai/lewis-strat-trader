@@ -58,6 +58,47 @@ def _rebalance_positions(index: pd.DatetimeIndex, rebalance_days: int) -> list[i
     return list(range(0, len(index), max(1, rebalance_days)))
 
 
+def subperiod_sharpe(daily_ret: pd.Series, periods_per_year: int = 365) -> dict:
+    """Sharpe per calendar year — the sign-consistency check. A real edge holds
+    across years; a fluke is carried by one."""
+    r = daily_ret.dropna()
+    out = {}
+    for yr, sub in r.groupby(r.index.year):
+        if len(sub) >= 20 and sub.std(ddof=1) > 0:
+            out[int(yr)] = round(float(sub.mean() / sub.std(ddof=1) * np.sqrt(periods_per_year)), 2)
+    return out
+
+
+def bootstrap_sharpe_ci(daily_ret: pd.Series, periods_per_year: int = 365,
+                        n: int = 1000, block: int = 10) -> tuple[float, float]:
+    """Block-bootstrap 95% CI for the annualised Sharpe."""
+    r = daily_ret.dropna().values
+    if len(r) < block * 3:
+        return (0.0, 0.0)
+    rng = np.random.default_rng(42)
+    import math
+    nb = math.ceil(len(r) / block)
+    starts = np.arange(0, len(r) - block + 1)
+    sh = []
+    for _ in range(n):
+        idx = rng.choice(starts, size=nb, replace=True)
+        samp = np.concatenate([r[s:s + block] for s in idx])[:len(r)]
+        sd = samp.std(ddof=1)
+        sh.append(samp.mean() / sd * np.sqrt(periods_per_year) if sd else 0.0)
+    return (round(float(np.quantile(sh, 0.025)), 2), round(float(np.quantile(sh, 0.975)), 2))
+
+
+def apply_vol_target(net_ret: pd.Series, target_ann_vol: float = 0.15,
+                     lookback: int = 30, periods_per_year: int = 365,
+                     cap: float = 3.0) -> pd.Series:
+    """Scale a return stream so its trailing realised vol tracks a target —
+    the managed-futures risk-control that tames raw cross-sectional vol. The
+    scale uses only past vol (shift 1) so there is no look-ahead."""
+    realised = net_ret.rolling(lookback).std(ddof=1) * np.sqrt(periods_per_year)
+    scale = (target_ann_vol / realised).clip(upper=cap).shift(1).fillna(0.0)
+    return net_ret * scale
+
+
 def _apply_weights(prices: pd.DataFrame, weights: pd.DataFrame,
                    cost_bps: float, periods_per_year: int):
     """Given a (sparse, rebalance-date) weights frame, hold between rebalances,
@@ -72,6 +113,15 @@ def _apply_weights(prices: pd.DataFrame, weights: pd.DataFrame,
     return portfolio_stats(net, periods_per_year), eq, net
 
 
+def _inv_vol(rets: pd.DataFrame, pos: int, assets, lookback: int) -> pd.Series:
+    """Normalised inverse-trailing-vol weights for `assets` at row `pos`."""
+    lo = max(0, pos - lookback)
+    vol = rets.iloc[lo:pos][list(assets)].std(ddof=1)
+    inv = (1.0 / vol).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    tot = inv.sum()
+    return inv / tot if tot > 0 else pd.Series(1.0 / len(assets), index=list(assets))
+
+
 def cross_sectional_backtest(
     prices: pd.DataFrame,
     scores: pd.DataFrame,
@@ -81,18 +131,21 @@ def cross_sectional_backtest(
     market_neutral: bool = True,
     min_assets: int = 4,
     periods_per_year: int = 365,
+    inverse_vol: bool = False,
+    vol_lookback: int = 30,
 ) -> dict:
     """Rank-and-trade a universe. `scores` (same shape as `prices`, higher = more
     attractive to long) is read only up to each rebalance bar (no look-ahead).
+    inverse_vol=True weights within each leg by 1/trailing-vol (risk parity).
 
-    Returns {stats, equity, n_rebalances}.
+    Returns {stats, equity, returns, n_rebalances}.
     """
+    rets = prices.pct_change()
     weights = pd.DataFrame(np.nan, index=prices.index, columns=prices.columns)
     n_rebal = 0
     for pos in _rebalance_positions(prices.index, rebalance_days):
         dt = prices.index[pos]
         s = scores.iloc[pos].dropna()
-        # only assets with a price at this bar
         s = s[prices.iloc[pos].reindex(s.index).notna()]
         if len(s) < min_assets:
             continue
@@ -100,14 +153,16 @@ def cross_sectional_backtest(
         ranked = s.sort_values()
         w = pd.Series(0.0, index=prices.columns)
         longs = ranked.index[-n:]
-        w[longs] = 1.0 / n
+        lw = _inv_vol(rets, pos, longs, vol_lookback) if inverse_vol else pd.Series(1.0 / n, index=longs)
+        w[longs] = lw
         if market_neutral:
             shorts = ranked.index[:n]
-            w[shorts] = w[shorts] - 1.0 / n
+            sw = _inv_vol(rets, pos, shorts, vol_lookback) if inverse_vol else pd.Series(1.0 / n, index=shorts)
+            w[shorts] = w[shorts] - sw
         weights.loc[dt] = w
         n_rebal += 1
-    stats, eq, _ = _apply_weights(prices, weights, cost_bps, periods_per_year)
-    return {"stats": stats, "equity": eq, "n_rebalances": n_rebal}
+    stats, eq, net = _apply_weights(prices, weights, cost_bps, periods_per_year)
+    return {"stats": stats, "equity": eq, "returns": net, "n_rebalances": n_rebal}
 
 
 def timeseries_trend_backtest(
@@ -116,30 +171,35 @@ def timeseries_trend_backtest(
     rebalance_days: int = 7,
     cost_bps: float = 10.0,
     periods_per_year: int = 365,
+    inverse_vol: bool = True,
+    vol_lookback: int = 60,
 ) -> dict:
     """Diversified time-series momentum: per-asset position = sign(trailing
-    return over lookback), equal-weighted across the basket. Net long/short
-    floats with how many assets are trending up vs down."""
+    return over lookback). inverse_vol=True (default) scales each position by
+    1/trailing-vol — the managed-futures risk-parity sizing that makes the
+    diversified basket work. Returns {stats, equity, returns, n_rebalances}."""
+    rets = prices.pct_change()
     weights = pd.DataFrame(np.nan, index=prices.index, columns=prices.columns)
     n_rebal = 0
     for pos in _rebalance_positions(prices.index, rebalance_days):
-        if pos < lookback_days:
+        if pos < max(lookback_days, vol_lookback):
             continue
         dt = prices.index[pos]
-        now = prices.iloc[pos]
-        past = prices.iloc[pos - lookback_days]
-        trail = now / past - 1.0
-        sig = np.sign(trail)
-        valid = sig.dropna()
-        valid = valid[valid != 0]
-        if len(valid) < 1:
+        trail = prices.iloc[pos] / prices.iloc[pos - lookback_days] - 1.0
+        sig = np.sign(trail.dropna())
+        sig = sig[sig != 0]
+        if len(sig) < 1:
             continue
         w = pd.Series(0.0, index=prices.columns)
-        w[valid.index] = valid.values / len(valid)  # equal weight across active assets
+        if inverse_vol:
+            iv = _inv_vol(rets, pos, sig.index, vol_lookback)
+            w[sig.index] = sig.values * iv.reindex(sig.index).values
+        else:
+            w[sig.index] = sig.values / len(sig)
         weights.loc[dt] = w
         n_rebal += 1
-    stats, eq, _ = _apply_weights(prices, weights, cost_bps, periods_per_year)
-    return {"stats": stats, "equity": eq, "n_rebalances": n_rebal}
+    stats, eq, net = _apply_weights(prices, weights, cost_bps, periods_per_year)
+    return {"stats": stats, "equity": eq, "returns": net, "n_rebalances": n_rebal}
 
 
 # ── score builders ────────────────────────────────────────────────────────────
