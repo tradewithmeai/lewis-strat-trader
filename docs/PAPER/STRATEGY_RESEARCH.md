@@ -106,6 +106,49 @@ compressed to ~5–15% annualised by 2026; cross-sectional crypto momentum muted
 in calm 2024–25). We expect modest, honest positives — not a magic bullet — and
 will hold them to the same rigor gate and live-forward confirmation.
 
+## 6. Phase-2 results: portfolio / cross-sectional engines (2026-06-30)
+
+Built `portfolio_backtester.py` (cross-sectional rank-and-trade + diversified
+time-series trend, with risk-parity weighting, a no-look-ahead vol-target
+overlay, per-calendar-year Sharpe, and block-bootstrap Sharpe CIs) and ran the
+three pre-registered tests. **Headline: the reframing is validated in *kind* but
+not in *degree*** — these are genuinely the structures the literature describes,
+behaving as documented, but none clears the rigor gate (every bootstrap Sharpe CI
+spans zero on our sample).
+
+| test | best config | Sharpe (95% CI) | vol / maxDD | per-year pattern |
+|---|---|---|---|---|
+| Crypto X-sectional momentum | 60d, risk-parity, vol-targeted 15% | **0.91** (−0.15, 1.89) | 17% / −19% | 2.6 → 1.2 → 0.4 → **−0.7** (decaying) |
+| Funding carry (price P&L only) | −funding rank, neutral | 0.32 (−0.71, 1.28) | 39% / −50% | inconsistent |
+| Funding carry **+ income** | + modeled funding accrual | **0.69** (−0.34, 1.66) | 39% / −47% | −1.0, 1.8, 0.3, 0.2 |
+| TradFi diversified trend | 120d, risk-parity, vol-targeted 10% | 0.26 (−0.21, 0.76) | 11% / −31% | crisis-alpha (+2008, +2022) |
+| _benchmarks_ | crypto EW buy&hold / TradFi EW long | 0.47 / 0.41 | — | — |
+
+Findings, honestly:
+1. **Crypto cross-sectional momentum is the strongest result we have.** Vol-
+   targeting tamed the raw 62% vol to a clean **17% vol / −19% DD at Sharpe ~0.9**,
+   and being **market-neutral it cushioned crypto drawdowns** — it beat the
+   long-only benchmark in 2025 (0.4 vs −0.3) and 2026 (−0.7 vs −1.5). But the
+   per-year Sharpe **decays monotonically and goes negative in 2026**, and the
+   CI spans zero. A *real but decaying* effect (matching reports of muted
+   cross-sectional crypto momentum in 2024–25), not a deployable edge.
+2. **Funding carry's income is real money** (~**+14.6%/yr** of funding accrual),
+   lifting the combined Sharpe to 0.69 and turning recent years positive. The
+   proper form is delta-hedged cash-and-carry, not the long/short price book
+   tested here; worth a dedicated build. CI still spans zero.
+3. **TradFi trend shows textbook crisis alpha** (positive in 2008 and 2022 when
+   long-only was hit) at low 11% vol — but standalone Sharpe (0.26) trails its
+   own benchmark (0.41). Consistent with the literature: at 16 markets it can't
+   reach the documented Sharpe>1 that needs 50–100 markets across asset classes.
+
+**Conclusion:** single-asset directional timing produced artefacts; the
+portfolio/cross-sectional reframing produced *weak-but-structurally-genuine*
+phenomena (market-neutrality, carry income, crisis alpha) whose limitation is
+decay / breadth / significance — not overfitting. The honest next step is forward
+validation (add crypto X-sectional momentum to the live board as a market-neutral
+challenger) and breadth (a proper cash-and-carry build; many more trend markets),
+not declaring a winner.
+
 ## 5. Methodological value (for the AI-augmentation tier)
 
 This strand is also evidence for the master's "AI-boost" thesis: the negative
