@@ -1,0 +1,269 @@
+{
+  "crypto_universe": [
+    "ADAUSDT",
+    "AVAXUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "ETHUSDT",
+    "EURUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "XRPUSDT"
+  ],
+  "tradfi_universe": [
+    "gold",
+    "silver",
+    "copper",
+    "wti",
+    "brent",
+    "natgas",
+    "corn",
+    "wheat",
+    "soybeans",
+    "soymeal",
+    "soyoil",
+    "coffee",
+    "sugar",
+    "cotton",
+    "cocoa",
+    "platinum",
+    "palladium",
+    "live_cattle",
+    "lean_hogs",
+    "gasoline",
+    "heating_oil",
+    "orange_juice",
+    "sp500",
+    "nasdaq",
+    "dow",
+    "russell2k",
+    "vix",
+    "us10y",
+    "us30y",
+    "us5y",
+    "us3m",
+    "dxy",
+    "eurusd",
+    "jpy",
+    "gbpusd",
+    "audusd",
+    "nzdusd",
+    "chf",
+    "cad",
+    "mxn",
+    "zar"
+  ],
+  "funding_universe": [
+    "ADAUSDT",
+    "AVAXUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "ETHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "XRPUSDT"
+  ],
+  "correlations": {
+    "xsec": {
+      "xsec": 1.0,
+      "carry": 0.01978,
+      "beta": -0.010473
+    },
+    "carry": {
+      "xsec": 0.01978,
+      "carry": 1.0,
+      "beta": 0.029044
+    },
+    "beta": {
+      "xsec": -0.010473,
+      "carry": 0.029044,
+      "beta": 1.0
+    }
+  },
+  "summary": {
+    "xsec": {
+      "stats": {
+        "ann_return": 17.1,
+        "ann_vol": 20.41,
+        "sharpe": 0.84,
+        "max_drawdown": -11.94,
+        "total_return": 70.51,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.05,
+        1.74
+      ],
+      "year_sharpe": {
+        "2023": 1.11,
+        "2024": 1.45,
+        "2025": 0.64,
+        "2026": -0.26
+      },
+      "total_return": 0.705117429416185
+    },
+    "carry": {
+      "stats": {
+        "ann_return": 6.49,
+        "ann_vol": 2.25,
+        "sharpe": 2.88,
+        "max_drawdown": -17.48,
+        "total_return": 25.33,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.46,
+        5.44
+      ],
+      "year_sharpe": {
+        "2023": 5.02,
+        "2024": 12.59,
+        "2025": -3.72,
+        "2026": -12.57
+      },
+      "total_return": 0.25330322866532584
+    },
+    "beta": {
+      "stats": {
+        "ann_return": 12.8,
+        "ann_vol": 10.92,
+        "sharpe": 1.17,
+        "max_drawdown": -8.05,
+        "total_return": 53.12,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.26,
+        2.24
+      ],
+      "year_sharpe": {
+        "2023": 0.12,
+        "2024": 2.08,
+        "2025": 0.94,
+        "2026": 1.92
+      },
+      "total_return": 0.5312170079246028
+    },
+    "combined": {
+      "stats": {
+        "ann_return": 22.86,
+        "ann_vol": 14.44,
+        "sharpe": 1.58,
+        "max_drawdown": -11.76,
+        "total_return": 114.48,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.79,
+        2.75
+      ],
+      "year_sharpe": {
+        "2023": 1.09,
+        "2024": 4.74,
+        "2025": 0.63,
+        "2026": -0.24
+      },
+      "total_return": 1.1448329572222988
+    },
+    "bh_beta_raw": {
+      "stats": {
+        "ann_return": 9.34,
+        "ann_vol": 7.61,
+        "sharpe": 1.23,
+        "max_drawdown": -7.07,
+        "total_return": 37.14,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.31,
+        2.27
+      ],
+      "year_sharpe": {
+        "2023": 0.31,
+        "2024": 2.07,
+        "2025": 1.1,
+        "2026": 1.7
+      },
+      "total_return": 0.37138321879331726
+    },
+    "bh_beta_std": {
+      "stats": {
+        "ann_return": 12.8,
+        "ann_vol": 10.92,
+        "sharpe": 1.17,
+        "max_drawdown": -8.05,
+        "total_return": 53.12,
+        "n_periods": 1274
+      },
+      "ci": [
+        0.26,
+        2.24
+      ],
+      "year_sharpe": {
+        "2023": 0.12,
+        "2024": 2.08,
+        "2025": 0.94,
+        "2026": 1.92
+      },
+      "total_return": 0.5312170079246028
+    },
+    "bh_crypto_raw": {
+      "stats": {
+        "ann_return": 23.0,
+        "ann_vol": 56.79,
+        "sharpe": 0.41,
+        "max_drawdown": -68.36,
+        "total_return": 26.78,
+        "n_periods": 1274
+      },
+      "ci": [
+        -0.56,
+        1.49
+      ],
+      "year_sharpe": {
+        "2023": 1.37,
+        "2024": 1.5,
+        "2025": -0.26,
+        "2026": -1.51
+      },
+      "total_return": 0.26779605809935103
+    },
+    "bh_crypto_std": {
+      "stats": {
+        "ann_return": 2.98,
+        "ann_vol": 11.81,
+        "sharpe": 0.25,
+        "max_drawdown": -18.24,
+        "total_return": 8.25,
+        "n_periods": 1274
+      },
+      "ci": [
+        -0.76,
+        1.39
+      ],
+      "year_sharpe": {
+        "2023": 0.24,
+        "2024": 1.8,
+        "2025": -0.22,
+        "2026": -1.73
+      },
+      "total_return": 0.08253941385270402
+    }
+  },
+  "combined_inputs_shape": [
+    1274,
+    3
+  ],
+  "aligned_shape": [
+    1274,
+    8
+  ]
+}

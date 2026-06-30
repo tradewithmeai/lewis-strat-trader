@@ -181,3 +181,65 @@ self-deception hard (mark-to-market DD, random-suppression nulls, forward board,
 declared search size). The reframing came from a literature search that
 correctly diagnosed the framing error. The record of *how the nulls were caught*
 is as valuable as the nulls themselves.
+
+## 7. Phase-3 result: trend breadth (2026-06-30)
+
+Following the reframing, we tested the main open thread — **diversified trend
+breadth** — using `local_system/portfolio_backtester.py` on a widened public-data
+universe built from `load_yf()`.
+
+- **Universe:** 32 TradFi instruments spanning commodities, equity indices,
+  rates, and FX (all fetched from yfinance; no collector / no lake).
+- **Fixed method:** 120d lookback, 7d rebalance, inverse-vol sizing,
+  10% vol-target overlay, 10 bp turnover cost, 252 trading days/year.
+- **Search size:** 4 breadth ladders (8 / 16 / 24 / 32 assets).
+- **Benchmark:** equal-weight long-only basket on the same tape, same rebalance
+  cadence, same cost and vol-target treatment.
+
+Headline: the basket is now genuinely broad, but the trend result still does **not**
+clear the rigor gate.
+
+| n | trend Sharpe (95% CI) | ann ret | maxDD | benchmark Sharpe (95% CI) | ann ret | maxDD |
+|---|---|---:|---:|---|---:|---:|
+| 8 | 0.31 (−0.35, 0.92) | +3.32% | −25.97% | 0.51 (−0.09, 1.21) | +5.54% | −24.26% |
+| 16 | 0.01 (−0.63, 0.66) | +0.11% | −30.65% | 0.58 (−0.07, 1.24) | +6.23% | −22.30% |
+| 24 | −0.10 (−0.70, 0.49) | −1.06% | −29.89% | 0.73 (0.09, 1.40) | +7.82% | −18.83% |
+| 32 | 0.16 (−0.46, 0.76) | +1.71% | −33.87% | 1.15 (0.49, 1.88) | +12.74% | −24.63% |
+
+Per-year Sharpe on the 32-asset trend basket is mixed (+ in 2017/18/20/21/22/26,
+− in 2019/23/24/25), so the sign-consistency check fails as well. The 32-asset
+benchmark remains stronger than the trend basket on this sample. No challenger.
+
+## 8. Phase-4 result: combine the premia (2026-06-30)
+
+The next thread was not a fourth standalone strategy; it was the portfolio test
+implied by the literature: combine the weak-but-real premia with fixed weights
+and see whether diversification does the work.
+
+- **Sleeve A:** crypto cross-sectional momentum (`xsec_momentum` lead), vol-
+  standardised for the combo.
+- **Sleeve B:** cash-and-carry with the high-cost haircut (10 bp/leg), then
+  standardised.
+- **Sleeve C:** diversified beta passive basket on the broad TradFi universe,
+  then standardised.
+- **Search size:** 3 sleeves, no weight optimisation; equal-risk sleeves then a
+  portfolio vol-target.
+
+Correlation matrix of the equal-risk sleeve inputs was genuinely low
+(xsec/carry 0.02, xsec/beta -0.01, carry/beta 0.03), so the premise was at least
+plausible. The combined book improved on the beta sleeve and cleared zero, but
+it still did **not** beat the best individual sleeve (carry) and the year-by-year
+sign pattern failed because 2026 flipped negative.
+
+| metric | value |
+|---|---:|
+| combined Sharpe (95% CI) | 1.58 (0.79, 2.75) |
+| combined ann return | +22.86% |
+| combined ann vol | +14.44% |
+| combined max DD | -11.76% |
+| best sleeve Sharpe | 2.88 (carry) |
+| passive TradFi benchmark Sharpe | 1.23 (0.31, 2.27) |
+
+Verdict: honest null — diversification helped versus the passive beta basket,
+but the combined book did not clear the full gate (best-sleeve hurdle + sign
+consistency).
