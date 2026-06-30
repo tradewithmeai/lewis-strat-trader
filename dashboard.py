@@ -168,6 +168,19 @@ def load_paper_accounts() -> dict:
 
 
 @st.cache_data(ttl=30)
+def load_community() -> dict:
+    """Attribution for community-suggested strategies: {strategy_name: {handle,
+    idea, added}}. Written by Darren when he adds a weekly pick to the race."""
+    p = STATE_DIR / "community_strategies.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+@st.cache_data(ttl=30)
 def load_equity_history(max_points: int = 49) -> dict:
     """Recent per-strategy standings (return %) for the race replay, from the tail
     of state/equity_history.jsonl. Returns {name: [ret%, ...]} + '__btc__'. Empty
@@ -250,10 +263,13 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--text);background:trans
 .comm{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:10px;
  padding:9px 14px;margin-bottom:14px;background:rgba(20,26,44,.55);font-size:13px;min-height:40px}
 .arena{border:1px solid var(--line);border-radius:16px;padding:6px 0;background:rgba(13,17,30,.55);overflow:hidden}
-.lane{display:grid;grid-template-columns:38px 144px 1fr;align-items:center;gap:12px;padding:8px 16px;position:relative}
+.lane{display:grid;grid-template-columns:38px 170px 1fr;align-items:center;gap:12px;padding:8px 16px;position:relative}
 .lane+.lane{border-top:1px solid rgba(40,48,76,.5)}
 .rk{font-family:'Saira Condensed';font-weight:700;font-size:20px;text-align:center;color:var(--muted)}
+.who{min-width:0}
 .nm{font-family:'Saira Condensed';font-weight:600;font-size:17px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.by{font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pickchip{color:var(--gold);font-weight:600;letter-spacing:.3px}
 .track{position:relative;height:32px;border-radius:9px;border:1px solid rgba(40,48,76,.6);
  background:repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 2px,transparent 2px 46px)}
 .startline{position:absolute;top:-4px;bottom:-4px;width:2px;background:rgba(234,237,247,.4)}
@@ -301,8 +317,9 @@ const arena=document.getElementById('arena');
 R.forEach((r,i)=>{
   const medal=r.rank<=3?['&#129351;','&#129352;','&#129353;'][r.rank-1]:r.rank;
   const badge=r.pos==='long'?'L':r.pos==='short'?'S':r.pos==='market-neutral'?'N':'·';
+  const byHtml=r.by?`<div class="by">by @${r.by}${r.pick?' · <span class="pickchip">★ pick of the week</span>':''}</div>`:(r.pick?'<div class="by"><span class="pickchip">★ pick of the week</span></div>':'');
   const lane=document.createElement('div');lane.className='lane';
-  lane.innerHTML=`<div class="rk">${medal}</div><div class="nm" title="${r.desc||''}">${r.nm}</div>
+  lane.innerHTML=`<div class="rk">${medal}</div><div class="who"><div class="nm" title="${r.desc||''}">${r.nm}</div>${byHtml}</div>
    <div class="track">${i===0?`<div class="startag" style="left:${startX}%">$1,000</div><div class="btctag" data-bt style="left:${btcX0}%">BTC</div>`:''}
    <div class="startline" style="left:${startX}%"></div><div class="btcline" data-bl style="left:${btcX0}%"></div>
    <div class="trail" data-tr></div><div class="runner" data-rn><span class="badge">${badge}</span><span data-lb>0.0%</span></div></div>`;
@@ -344,8 +361,23 @@ requestAnimationFrame(frame);
 """
 
 
-def render_race_board(accounts: dict, meta: dict, bench: dict, history: dict) -> None:
+def render_race_board(accounts: dict, meta: dict, bench: dict, history: dict,
+                      community: dict | None = None) -> None:
     """Render the gamified live race board (custom HTML component) from the ledger."""
+    community = community or {}
+    # "This week's pick" = the most recently added community entry, within 7 days.
+    recent_pick, pick_when = None, None
+    for nm, c in community.items():
+        try:
+            d = datetime.fromisoformat(c.get("added", ""))
+            d = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if pick_when is None or d > pick_when:
+            pick_when, recent_pick = d, nm
+    if pick_when and (datetime.now(timezone.utc) - pick_when).days > 7:
+        recent_pick = None
+
     runners = []
     for name, info in accounts.items():
         eq = info.get("equity", info.get("balance"))
@@ -356,7 +388,9 @@ def render_race_board(accounts: dict, meta: dict, bench: dict, history: dict) ->
             "ret": round(info.get("return_pct", 0.0) or 0.0, 2),
             "status": info.get("light", "ORANGE"),
             "pos": info.get("side", "flat"),
-            "desc": STRATEGY_DESC.get(name, ""),
+            "desc": STRATEGY_DESC.get(name, "") or (community.get(name, {}).get("idea", "")[:80]),
+            "by": community.get(name, {}).get("handle"),
+            "pick": name == recent_pick,
         })
     runners.sort(key=lambda r: r["ret"], reverse=True)
 
@@ -683,7 +717,7 @@ elif tab_choice == "Traffic Light":
     else:
         _updated = meta.get("last_tick_ts", "—")
         # ── the gamified live race board (custom HTML component) ────────────────
-        _started, _day = render_race_board(accounts, meta, bench, load_equity_history())
+        _started, _day = render_race_board(accounts, meta, bench, load_equity_history(), load_community())
         _since = f"racing since {_started} · day {_day} · " if _started else ""
         st.caption(
             f"Live · {_since}{len(accounts)} strategies trading $1,000 forward · "

@@ -43,6 +43,7 @@ state/paper_accounts.json
 state/status.json
 state/equity_history.jsonl
 state/submissions.jsonl
+state/community_strategies.json
 
 # CCE (code-context-engine)
 # CCE local cache (per-machine, not for version control)

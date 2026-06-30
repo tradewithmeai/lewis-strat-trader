@@ -87,6 +87,26 @@ loop on what goes live. This keeps the whole feature safe.
   adding other assets or news feeds as data sources is easy, so "what can it
   watch" is genuinely open.
 
+## How Darren adds a pick (the convention — P2 mechanism, built 2026-06-30)
+
+When Darren codifies the weekly pick, four steps put it on the board, attributed:
+
+1. **Codify** the idea as a strategy using the *existing* building blocks — a
+   `Strategy` subclass in `local_system/strategies/<name>.py` (fit/signal), or a
+   `portfolio_backtester` config. Reuse indicators we have; keep it simple. (This
+   is Darren writing code via Claude — never the public's code.)
+2. **Register** it in `local_system/strategies/registry.py` (`REGISTRY`). The live
+   board runs every registered strategy, so this is what puts it in the race.
+3. **Attribute** it — append to `state/community_strategies.json`:
+   `{"<name>": {"handle": "terrys_human", "idea": "<their words>", "added": "<ISO-8601 UTC>"}}`.
+   The dashboard reads this and shows **"by @handle"** on the lane; the entry with
+   the most recent `added` (within 7 days) gets the **★ pick of the week** chip.
+4. **Restart** the board: `systemctl --user restart paper-trader` — the new
+   strategy starts at $1,000 and joins the race.
+
+Then the weekly Telegram report names the pick + who suggested it. The cull
+handles it from there if it loses.
+
 ## Later (beyond the first tournament)
 
 - Display other people's more complex / technical strategies.
