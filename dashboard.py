@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -210,6 +210,7 @@ _RACE_TEMPLATE = r"""
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;color:var(--text);background:transparent;line-height:1.5}
 .eyebrow{font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:var(--violet);font-weight:600}
+.since{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
 .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:20px 24px;
  border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,rgba(139,108,255,.15),rgba(20,26,44,.5) 55%);margin-bottom:16px}
 .hero h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(34px,6vw,56px);line-height:.95;margin:5px 0 4px}
@@ -246,6 +247,7 @@ body{font-family:'Inter',system-ui,sans-serif;color:var(--text);background:trans
 </style></head><body>
 <div class="hero"><div>
   <div class="eyebrow">Leader on the board</div>
+  <div class="since" id="since"></div>
   <h1 id="leadName">—</h1>
   <div class="sub">A live, public race — every strategy trades <b>$1,000</b> forward, fees in. Beat the field, and beat just <b>holding BTC</b>. No real money.</div>
 </div><div class="leadstat"><div class="big" id="leadRet">—</div><div class="cap" id="leadCap"></div></div></div>
@@ -290,6 +292,7 @@ R.forEach((r,i)=>{
   if(r.rank===1) r._rn.style.boxShadow=`0 0 16px ${hexA(r.col,.7)},0 2px 9px rgba(0,0,0,.5)`;
 });
 const blines=document.querySelectorAll('[data-bl]'), btag=document.querySelectorAll('[data-bt]');
+const META=DATA.meta||{}; if(META.started) document.getElementById('since').textContent='Racing since '+META.started+' · Day '+META.day;
 document.getElementById('leadName').textContent = N?R[0].nm:'—';
 document.getElementById('leadRet').textContent = N?((R[0].ret>=0?'+':'')+R[0].ret.toFixed(1)+'%'):'—';
 document.getElementById('leadRet').style.color = N?R[0].col:'var(--text)';
@@ -334,14 +337,34 @@ def render_race_board(accounts: dict, meta: dict, bench: dict, history: dict) ->
             "desc": STRATEGY_DESC.get(name, ""),
         })
     runners.sort(key=lambda r: r["ret"], reverse=True)
+
+    # Anchored race start = earliest account inception (persisted, stable).
+    _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    starts = []
+    for info in accounts.values():
+        s = info.get("start_ts")
+        if s:
+            try:
+                d = datetime.fromisoformat(s)
+                starts.append(d if d.tzinfo else d.replace(tzinfo=timezone.utc))
+            except ValueError:
+                pass
+    started_label, day_n = "", 0
+    if starts:
+        bs = min(starts)
+        day_n = (datetime.now(timezone.utc) - bs).days + 1
+        started_label = f"{bs.day} {_MON[bs.month]} {bs.year}"
+
     data = {
         "runners": runners,
         "btc": round(bench.get("return_pct", 0.0) or 0.0, 2),
         "history": history or {},
+        "meta": {"started": started_label, "day": day_n},
     }
-    height = 320 + len(runners) * 50 + 70
+    height = 330 + len(runners) * 50 + 70
     html = _RACE_TEMPLATE.replace("__DATA__", json.dumps(data))
     components.html(html, height=height, scrolling=False)
+    return started_label, day_n
 
 
 @st.cache_data(ttl=60)
@@ -637,13 +660,13 @@ elif tab_choice == "Traffic Light":
         )
     else:
         _updated = meta.get("last_tick_ts", "—")
+        # ── the gamified live race board (custom HTML component) ────────────────
+        _started, _day = render_race_board(accounts, meta, bench, load_equity_history())
+        _since = f"racing since {_started} · day {_day} · " if _started else ""
         st.caption(
-            f"Live · {len(accounts)} strategies trading $1,000 forward · "
+            f"Live · {_since}{len(accounts)} strategies trading $1,000 forward · "
             f"updated {_updated} · BTC regime: {meta.get('regime', '—')}"
         )
-
-        # ── the gamified live race board (custom HTML component) ────────────────
-        render_race_board(accounts, meta, bench, load_equity_history())
 
         def _money(x, signed=False):
             if x is None:
