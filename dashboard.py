@@ -317,7 +317,7 @@ const arena=document.getElementById('arena');
 R.forEach((r,i)=>{
   const medal=r.rank<=3?['&#129351;','&#129352;','&#129353;'][r.rank-1]:r.rank;
   const badge=r.pos==='long'?'L':r.pos==='short'?'S':r.pos==='market-neutral'?'N':'·';
-  const byHtml=r.by?`<div class="by">by @${r.by}${r.pick?' · <span class="pickchip">★ pick of the week</span>':''}</div>`:(r.pick?'<div class="by"><span class="pickchip">★ pick of the week</span></div>':'');
+  const byHtml=r.by?`<div class="by">by @${r.by}${r.pick?' · <span class="pickchip">★ pick</span>':''}</div>`:(r.pick?'<div class="by"><span class="pickchip">★ pick</span></div>':'');
   const lane=document.createElement('div');lane.className='lane';
   lane.innerHTML=`<div class="rk">${medal}</div><div class="who"><div class="nm" title="${r.desc||''}">${r.nm}</div>${byHtml}</div>
    <div class="track">${i===0?`<div class="startag" style="left:${startX}%">$1,000</div><div class="btctag" data-bt style="left:${btcX0}%">BTC</div>`:''}
