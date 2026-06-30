@@ -56,13 +56,35 @@ loop on what goes live. This keeps the whole feature safe.
 - **P4 — Community wall:** pending/added/rejected ideas with verdicts; submitter
   can follow their entry.
 
-## Open questions for the owner
+## Voice & philosophy (decided 2026-06-30)
 
-- **Auto-add or human-approve** the weekly pick before it hits the live race?
-  (Paper-only + cull argues for auto with veto; reputation argues for approve.)
-- **Submission shape:** free-text only, or a guided template (pick indicators +
-  thresholds) to make translation reliable and reduce junk?
-- **Identity/anti-abuse:** anonymous handles vs a light sign-in; how hard to gate
-  spam on a public form.
+- **Free-text only, by design.** People describe their idea however weird and
+  wonderful — no code, no jargon, no template required. Low friction is the
+  point. (A guided indicator-picker for technical users is a *later, optional*
+  add, not the default.)
+- **Fun and informative.** The humour does the teaching: every bot needs just two
+  things — **data** (something it can watch) and a **trigger** (when to act). The
+  playful reply to a daft idea quietly explains exactly that.
+- **Anti-hype, explicitly.** No "I built a 3000% bot" claims. The stance is
+  *"bring it down and we'll see if you're right"* — an honest race, costs in,
+  forward-tested, with the cull for losers.
+- **The Terry test (the house example).** "My tortoise Terry predicts BTC volume
+  — when he sits top-right of his tank, volume rises the next day." The right
+  response: *brilliant — first, insure Terry. If that's really the signal, the
+  recipe is the same as any bot: the **data** is a camera on the tank, the
+  **trigger** is 'Terry top-right → expect higher volume'. Wire a bridge to that
+  feed and Terry races the field.* It's silly on purpose, and it teaches the
+  whole method in one breath. We are **not** chasing pet strategies — it's the
+  illustration, not the goal.
+- **The system can already take more.** Owner has built the data + harness;
+  adding other assets or news feeds as data sources is easy, so "what can it
+  watch" is genuinely open.
 
-_This is the agreed direction toward the "final stage"; not yet built._
+## Later (beyond the first tournament)
+
+- Display other people's more complex / technical strategies.
+- Let entrants **register a wallet** to prove live trading success — real money,
+  real verification — as the high tier above the paper race.
+
+_Agreed direction toward the "final stage". P1 (text capture) is being built;
+P2–P4 follow._

@@ -201,6 +201,28 @@ def load_progress() -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def save_submission(handle: str, idea: str) -> tuple[bool, str]:
+    """Append a free-text strategy suggestion to state/submissions.jsonl. Text only,
+    by design — no code is ever accepted or run. Light validation; Darren's weekly
+    review is the real filter."""
+    idea = (idea or "").strip()
+    handle = (handle or "").strip() or "anonymous"
+    if len(idea) < 12:
+        return False, "Tell us a little more — what should it watch, and when should it buy or sell?"
+    if len(idea) > 2000:
+        return False, "That's a whole novel — trim it to the core idea: the data and the trigger."
+    try:
+        STATE_DIR.mkdir(exist_ok=True)
+        with open(STATE_DIR / "submissions.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "handle": handle[:40], "idea": idea,
+            }) + "\n")
+        return True, f"🐢 Entry received, {handle}! Darren reviews the grid every week — watch this space."
+    except Exception:
+        return False, "Couldn't save that just now — give it another go in a moment."
+
+
 _RACE_TEMPLATE = r"""
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>
@@ -705,6 +727,36 @@ elif tab_choice == "Traffic Light":
                     "Trades": "—", "Win %": "—", "Now": "hold",
                 })
             st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+
+    # ── Enter your own strategy (free-text, no code by design) ──────────────────
+    st.markdown("---")
+    st.subheader("🏁 Enter your own strategy")
+    st.markdown(
+        "Think you can beat the market? **Bring it down and we'll see if you're right** — "
+        "no \"3000% bot\" claims here, just an honest, fees-included race.\n\n"
+        "**No code, no jargon.** Every trading bot needs only two things: **data** (something it "
+        "can watch) and a **trigger** (when to buy or sell). Tell us those — however weird and "
+        "wonderful — and Darren will try to codify it.\n\n"
+        "*For instance:* \"My tortoise Terry predicts BTC volume — when he sits top-right of his "
+        "tank, volume rises the next day.\" Brilliant. Step one: insure Terry. Step two: if that's "
+        "really the signal, the **data** is a camera on the tank and the **trigger** is *Terry "
+        "top-right → expect higher volume* — wire that up and Terry races the field. Daft on "
+        "purpose, but that's genuinely all a bot is."
+    )
+    with st.form("suggest_strategy", clear_on_submit=True):
+        _handle = st.text_input("Your name or handle", max_chars=40, placeholder="e.g. terrys_human")
+        _idea = st.text_area(
+            "Your strategy idea", max_chars=2000,
+            placeholder="What should it watch, and when should it buy or sell?",
+        )
+        _sent = st.form_submit_button("Enter the race →")
+    if _sent:
+        _ok, _msg = save_submission(_handle, _idea)
+        (st.success if _ok else st.warning)(_msg)
+    st.caption(
+        "Darren reviews entries weekly, codifies the best idea he can, and adds it to the "
+        "board — credited to you. Paper trading only, no real money."
+    )
 
 # ── Tab: Equity Curves ────────────────────────────────────────────────────────
 
