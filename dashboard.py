@@ -331,7 +331,7 @@ R.forEach((r,i)=>{
   if(r.rank===1) r._rn.style.boxShadow=`0 0 16px ${hexA(r.col,.7)},0 2px 9px rgba(0,0,0,.5)`;
 });
 const blines=document.querySelectorAll('[data-bl]'), btag=document.querySelectorAll('[data-bt]');
-const META=DATA.meta||{}; if(META.started) document.getElementById('since').textContent='Racing since '+META.started+' · Day '+META.day;
+const META=DATA.meta||{}; if(META.started) document.getElementById('since').textContent='Trading live since '+META.started+' · Day '+META.day;
 document.getElementById('leadName').textContent = N?R[0].nm:'—';
 document.getElementById('leadRet').textContent = N?((R[0].ret>=0?'+':'')+R[0].ret.toFixed(1)+'%'):'—';
 document.getElementById('leadRet').style.color = N?R[0].col:'var(--text)';
@@ -718,7 +718,7 @@ elif tab_choice == "Traffic Light":
         _updated = meta.get("last_tick_ts", "—")
         # ── the gamified live race board (custom HTML component) ────────────────
         _started, _day = render_race_board(accounts, meta, bench, load_equity_history(), load_community())
-        _since = f"racing since {_started} · day {_day} · " if _started else ""
+        _since = f"trading live since {_started} · day {_day} · " if _started else ""
         st.caption(
             f"Live · {_since}{len(accounts)} strategies trading $1,000 forward · "
             f"updated {_updated} · BTC regime: {meta.get('regime', '—')}"
