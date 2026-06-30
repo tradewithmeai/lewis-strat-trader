@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>stratbot · live strategy tournament</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+:root{
+  --ink:#0A0D18; --panel:#141A2C; --line:#28304C; --text:#EAEDF7; --muted:#8A93AD;
+  --violet:#8B6CFF; --cyan:#2DD4DA;
+  --green:#3DDC97; --amber:#F5B544; --red:#FB6F92; --gold:#F5C451;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;color:var(--text);line-height:1.5;
+  background:radial-gradient(1100px 600px at 80% -10%,rgba(139,108,255,.16),transparent 60%),
+             radial-gradient(900px 500px at 5% 0,rgba(45,212,218,.07),transparent 55%),
+             linear-gradient(180deg,#0B0F1C,var(--ink) 42%);min-height:100vh}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:11px;font-family:'Saira Condensed';font-weight:700;font-size:23px;letter-spacing:.5px;text-transform:uppercase}
+.sig{width:13px;height:24px;border-radius:4px;background:linear-gradient(180deg,var(--green),var(--amber) 50%,var(--red));box-shadow:0 0 14px rgba(245,181,68,.5)}
+.live{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(45,212,218,.5)}70%{box-shadow:0 0 0 7px rgba(45,212,218,0)}100%{box-shadow:0 0 0 0 rgba(45,212,218,0)}}
+.live b{color:var(--text);font-weight:600}
+
+/* hero */
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;flex-wrap:wrap;padding:22px 26px;border:1px solid var(--line);border-radius:16px;
+  background:linear-gradient(135deg,rgba(139,108,255,.15),rgba(20,26,44,.5) 55%);margin-bottom:18px}
+.eyebrow{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:var(--violet);font-weight:600}
+.hero h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(38px,6.5vw,64px);line-height:.95;margin:6px 0 4px}
+.hero .sub{color:var(--muted);font-size:14.5px;max-width:48ch}.hero .sub b{color:var(--text);font-weight:600}
+.leadstat{text-align:right;min-width:140px}
+.leadstat .big{font-family:'Saira Condensed';font-weight:700;font-size:50px;line-height:1;color:var(--green)}
+.leadstat .cap{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:5px}
+
+/* replay control */
+.bar{display:flex;align-items:center;gap:14px;margin:0 2px 10px}
+.replay{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--violet);color:var(--text);background:rgba(139,108,255,.14);
+  border-radius:10px;padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer}
+.replay:hover{background:rgba(139,108,255,.24)}
+.clock{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--cyan);font-variant-numeric:tabular-nums}
+.scrub{flex:1;height:4px;border-radius:3px;background:var(--line);position:relative;overflow:hidden}
+.scrub i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan))}
+
+/* commentary */
+.comm{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:10px;
+  padding:10px 14px;margin-bottom:16px;background:rgba(20,26,44,.55);font-size:13.5px;min-height:42px}
+.comm .mic{font-size:15px}.comm .line{font-weight:500}
+
+/* arena */
+.arena{border:1px solid var(--line);border-radius:16px;padding:8px 0;background:rgba(13,17,30,.55);overflow:hidden}
+.lane{display:grid;grid-template-columns:40px 150px 1fr;align-items:center;gap:12px;padding:9px 18px;position:relative}
+.lane+.lane{border-top:1px solid rgba(40,48,76,.5)}
+.rk{font-family:'Saira Condensed';font-weight:700;font-size:22px;text-align:center;color:var(--muted)}
+.nm{font-family:'Saira Condensed';font-weight:600;font-size:18px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{position:relative;height:34px;border-radius:9px;background:
+  repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 2px,transparent 2px 46px);
+  border:1px solid rgba(40,48,76,.6)}
+.startline{position:absolute;top:-4px;bottom:-4px;width:2px;background:rgba(234,237,247,.4)}
+.btcline{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--cyan);box-shadow:0 0 8px rgba(45,212,218,.8);transition:left .1s linear}
+.btctag{position:absolute;top:-20px;font-size:9.5px;letter-spacing:.5px;color:var(--cyan);transform:translateX(-50%)}
+.startag{position:absolute;top:-20px;font-size:9.5px;letter-spacing:.5px;color:rgba(234,237,247,.5);transform:translateX(-50%)}
+.trail{position:absolute;top:50%;transform:translateY(-50%);height:10px;border-radius:6px;opacity:.5}
+.runner{position:absolute;top:50%;transform:translate(-50%,-50%);height:26px;display:flex;align-items:center;gap:6px;
+  padding:0 9px 0 6px;border-radius:14px;font-family:'IBM Plex Mono';font-weight:600;font-size:12px;white-space:nowrap;
+  box-shadow:0 2px 10px rgba(0,0,0,.4);transition:none}
+.runner .badge{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#0A0D18}
+.runner.lead{box-shadow:0 0 18px rgba(139,108,255,.7),0 2px 10px rgba(0,0,0,.5)}
+.pill{font-family:'Inter';font-size:9.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:1px 6px;border-radius:10px;margin-left:2px}
+
+.foot{margin-top:18px;color:var(--muted);font-size:12.5px;display:flex;gap:22px;flex-wrap:wrap}.foot b{color:var(--text)}
+@media (max-width:680px){.lane{grid-template-columns:30px 1fr}.track{grid-column:1/-1;margin-top:6px}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><span class="sig"></span> stratbot</div>
+    <div class="live"><span class="dot"></span> Live · racing since <b>Jun 27</b> · BTC regime <b>bear</b></div>
+  </div>
+
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Leader on the board</div>
+      <h1 id="leadName">mtf_bb_vol</h1>
+      <div class="sub">A live, public race — 13 strategies each trade <b>$1,000</b> forward, fees in. Beat the field, and beat just <b>holding BTC</b>. No real money.</div>
+    </div>
+    <div class="leadstat"><div class="big" id="leadRet">+1.6%</div><div class="cap">leader · +2.2% vs BTC</div></div>
+  </div>
+
+  <div class="bar">
+    <button class="replay" id="replayBtn">▶ Replay last 4h</button>
+    <div class="clock" id="clock">−4h 00m</div>
+    <div class="scrub"><i id="scrubFill"></i></div>
+  </div>
+
+  <div class="comm"><span class="mic">🎙️</span><span class="line" id="commLine">Lights out — the field rolls off the $1,000 grid…</span></div>
+
+  <div class="arena" id="arena"></div>
+
+  <div class="foot">
+    <span><b>Position</b> = live P&amp;L. Colour runs green→red by standing.</span>
+    <span><b>Cyan line</b> = buy-and-hold BTC, the bar to beat.</span>
+    <span><b>The cut:</b> the backmarkers are dropped once they've a real track record.</span>
+  </div>
+</div>
+
+<script>
+const RUN = [
+  {nm:"mtf_bb_vol",   ret:1.6,  status:"proving", pos:"long"},
+  {nm:"bb_rsi_dip",   ret:0.8,  status:"proving", pos:"flat"},
+  {nm:"xsec_momentum",ret:0.1,  status:"proving", pos:"m-n"},
+  {nm:"breakout",     ret:-0.4, status:"proving", pos:"flat"},
+  {nm:"rsi_meanrev",  ret:-0.7, status:"proving", pos:"flat"},
+  {nm:"ema_crossover",ret:-2.9, status:"at risk", pos:"long"},
+  {nm:"markov_regime",ret:-3.8, status:"at risk", pos:"long"},
+];
+const BTC_RET = -0.6;
+// performance gradient: rank 0 (leader) -> green, last -> red
+function perfColor(i,n){const t=i/(n-1);
+  // green -> amber -> red
+  const a=[61,220,151], b=[245,181,68], c=[251,111,146];
+  let r,g,bl; if(t<.5){const u=t/.5; r=a[0]+(b[0]-a[0])*u; g=a[1]+(b[1]-a[1])*u; bl=a[2]+(b[2]-a[2])*u;}
+  else{const u=(t-.5)/.5; r=b[0]+(c[0]-b[0])*u; g=b[1]+(c[1]-b[1])*u; bl=b[2]+(c[2]-b[2])*u;}
+  return `rgb(${r|0},${g|0},${bl|0})`;}
+
+const sorted=[...RUN].sort((x,y)=>y.ret-x.ret);
+const N=sorted.length;
+const lo=Math.min(BTC_RET, ...RUN.map(r=>r.ret))-0.6;
+const hi=Math.max(BTC_RET, ...RUN.map(r=>r.ret))+0.6;
+const X=v=>(v-lo)/(hi-lo)*100;             // map return% -> 0..100 of track
+const startX=X(0), btcX=X(BTC_RET);
+
+// build a 4h path (48 steps) for each runner: 0 -> ret with seeded wiggle
+function path(seed, end){const p=[];for(let k=0;k<=48;k++){const t=k/48;
+  const wig=Math.sin(t*6.3+seed)*0.35*(1-Math.abs(t-0.5)*1.2)+Math.sin(t*13+seed*2)*0.12;
+  p.push(end*t + wig);}return p;}
+sorted.forEach((r,i)=>{r.color=perfColor(i,N); r.path=path(i*1.7+1, r.ret); r.rank=i+1;});
+const btcPath=path(0.4, BTC_RET);
+
+const arena=document.getElementById("arena");
+sorted.forEach((r,i)=>{
+  const medal = r.rank<=3 ? ["🥇","🥈","🥉"][r.rank-1] : r.rank;
+  const lane=document.createElement("div"); lane.className="lane";
+  lane.innerHTML=`<div class="rk">${medal}</div>
+    <div class="nm">${r.nm}</div>
+    <div class="track">
+      ${i===0?`<div class="startag" style="left:${startX}%">$1,000</div><div class="btctag" style="left:${btcX}%">BTC</div>`:""}
+      <div class="startline" style="left:${startX}%"></div>
+      <div class="btcline" data-btc style="left:${btcX}%"></div>
+      <div class="trail" data-trail></div>
+      <div class="runner ${i===0?'lead':''}" data-run>
+        <span class="badge" style="background:${r.color}">${r.pos==='long'?'L':r.pos==='m-n'?'N':'·'}</span>
+        <span data-lab>0.0%</span>
+      </div>
+    </div>`;
+  arena.appendChild(lane);
+  r._run=lane.querySelector("[data-run]"); r._lab=lane.querySelector("[data-lab]");
+  r._trail=lane.querySelector("[data-trail]"); r._run.style.background=hexA(r.color,.16); r._run.style.color=r.color;
+  r._run.style.border=`1px solid ${hexA(r.color,.5)}`; r._trail.style.background=`linear-gradient(90deg,transparent,${hexA(r.color,.6)})`;
+});
+function hexA(rgb,a){return rgb.replace("rgb(","rgba(").replace(")",`,${a})`);}
+
+const COMM=[
+  "🏁 mtf_bb_vol surges clear at the front",
+  "🐢 tight field — most of the grid still hugging the $1,000 line",
+  "🪦 markov_regime drifting to the back, flirting with the cut",
+  "💸 ema_crossover loses ground, slips into the drop zone",
+  "📈 mtf_bb_vol the only one clear of the BTC pace car",
+];
+const btcLines=document.querySelectorAll("[data-btc]");
+let t=0, playing=true, ci=0, lastComm=0;
+const clock=document.getElementById("clock"), scrub=document.getElementById("scrubFill"), commLine=document.getElementById("commLine");
+function frame(){
+  if(playing){ t+=0.0045; if(t>=1){t=0; ci=0;} }
+  const idx=Math.min(48, Math.floor(t*48));
+  sorted.forEach(r=>{ const v=r.path[idx]; const x=X(v);
+    r._run.style.left=x+"%";
+    r._trail.style.left=startX+"%"; r._trail.style.width=Math.max(0,x-startX)+"%";
+    r._lab.textContent=(v>=0?"+":"")+v.toFixed(1)+"%";
+  });
+  const bx=X(btcPath[idx]); btcLines.forEach(b=>b.style.left=bx+"%");
+  const mins=Math.round((1-t)*240); clock.textContent="−"+String(Math.floor(mins/60))+"h "+String(mins%60).padStart(2,"0")+"m";
+  if(t>0.97) clock.textContent="now";
+  scrub.style.width=(t*100)+"%";
+  if(t-lastComm>0.2){ commLine.textContent=COMM[ci%COMM.length]; ci++; lastComm=t; }
+  requestAnimationFrame(frame);
+}
+document.getElementById("replayBtn").addEventListener("click",()=>{t=0;ci=0;lastComm=0;playing=true;});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
