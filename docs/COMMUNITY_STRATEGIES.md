@@ -23,16 +23,23 @@ loop on what goes live. This keeps the whole feature safe.
    take profit at Y%"), and optional template params. Appended to
    `state/submissions.jsonl`. Light anti-spam: rate-limit + an LLM moderation
    pass (drop abuse/nonsense), no code field.
-2. **Weekly review (Darren)** — a weekly cron (sibling of the daily dream):
-   read the new submissions, use the day's Claude run to turn the most promising
-   into concrete strategies via the existing harness, backtest each through the
-   **rigor gate** (full-history, sign-consistency, mark-to-market DD, beat
-   buy-and-hold, bootstrap CI, declare search size). Pick **at most one** that's
-   plausible, safe, and distinct from the current field — or **none**, honestly.
-3. **Add to the race** — the pick is added as a **live paper account** (it's only
-   paper; the existing **cull** removes it if it loses). Show **"suggested by
-   @handle"** on its lane, and a **"This week's pick"** highlight. Human veto
-   before it goes live.
+2. **Weekly review (Darren)** — a weekly cron (sibling of the daily dream): read
+   the new submissions, moderate (drop abuse/spam/nothing-codifiable), and use the
+   day's Claude run to turn them into concrete strategies via the existing harness.
+   **Always pick the single best *valid* one and add it** — "valid" = codifiable
+   (a real data source we have or can add + a real trigger) and not abusive. Only
+   skip a week if there's genuinely nothing valid to codify.
+3. **Add to the race — engagement-first, NOT gated on profitability.** The weekly
+   pick **always joins the live paper race** (it's only paper; the **cull**
+   removes it if it loses, so a weak pick fails safely and honestly). Most won't
+   be profitable — that's expected and fine; the point is people watch *their*
+   runner race. Shown as **"suggested by @handle"** with a **"This week's pick"**
+   highlight. One in per week + the cull keeps the field steady.
+
+   > **Race entry is a low bar by design; the rigor gate is a different, higher
+   > bar.** The gate guards the serious question — is this a *validated edge*? —
+   > and any future real-money / wallet tier. It is **never** the gate for getting
+   > a lane on the community paper race. (Decided 2026-06-30.)
 4. **Engagement** — submitters can watch *their* strategy race; a small
    "community wall" of pending/added/rejected ideas with one-line verdicts.
 

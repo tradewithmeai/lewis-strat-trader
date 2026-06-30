@@ -64,6 +64,16 @@ multiplies false positives.
   `docs/PAPER/STRATEGY_RESEARCH.md` — READ IT before proposing portfolio work so
   you build on the leads (crypto cross-sectional momentum is live on the board;
   carry is real-but-marginal; trend needs breadth) rather than repeating them.
+- **Weekly community-strategy pick (engagement routine).** Visitors submit
+  free-text strategy ideas via the site (`state/submissions.jsonl`; text only —
+  never run user code). Once a week: moderate (drop abuse/spam/nothing-codifiable),
+  codify the best *valid* idea into a strategy via the existing harness, and
+  **always add that one to the live paper race**, credited to the submitter
+  ("suggested by @handle"). This is **engagement-first and NOT gated on
+  profitability** — race entry is a deliberately low bar; the cull removes losers
+  safely (it's paper). The rigor gate is for *validated-edge*/real-money decisions
+  only, never for community race entry. One pick per week. Full design:
+  `docs/COMMUNITY_STRATEGIES.md`. (Routine to be built — P2.)
 - **Event/opportunity research via the events DB.** Extend the scaffolded
   `local_system/signals/news/event_db.py` (the historical+live event table with
   per-event market reaction). Add the `EXTEND` hooks: LLM categorisation,
