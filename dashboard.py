@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 from plotly.subplots import make_subplots
 
 ROOT = Path(__file__).parent
@@ -167,11 +168,180 @@ def load_paper_accounts() -> dict:
 
 
 @st.cache_data(ttl=30)
+def load_equity_history(max_points: int = 49) -> dict:
+    """Recent per-strategy standings (return %) for the race replay, from the tail
+    of state/equity_history.jsonl. Returns {name: [ret%, ...]} + '__btc__'. Empty
+    if not enough history yet (the component then eases start->now instead)."""
+    p = STATE_DIR / "equity_history.jsonl"
+    if not p.exists():
+        return {}
+    rows = []
+    for line in p.read_text().splitlines()[-max_points:]:
+        if line.strip():
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    if len(rows) < 6:
+        return {}
+    series: dict[str, list] = {}
+    for r in rows:
+        for name, eq in (r.get("eq") or {}).items():
+            series.setdefault(name, []).append(round((eq / 1000.0 - 1.0) * 100, 3))
+        if r.get("btc") is not None:
+            series.setdefault("__btc__", []).append(round((r["btc"] / 1000.0 - 1.0) * 100, 3))
+    return series
+
+
+@st.cache_data(ttl=30)
 def load_progress() -> dict:
     p = ROOT / "docs" / "PAPER" / "progress.json"
     if not p.exists():
         return {}
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+_RACE_TEMPLATE = r"""
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+:root{--ink:#0A0D18;--line:#28304C;--text:#EAEDF7;--muted:#8A93AD;--violet:#8B6CFF;--cyan:#2DD4DA;
+--gold:#F5C451;--silver:#C9D2E3;--bronze:#D08A52;--red:#FB6F92;--steel:#7C89A8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;color:var(--text);background:transparent;line-height:1.5}
+.eyebrow{font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:var(--violet);font-weight:600}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:20px 24px;
+ border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,rgba(139,108,255,.15),rgba(20,26,44,.5) 55%);margin-bottom:16px}
+.hero h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(34px,6vw,56px);line-height:.95;margin:5px 0 4px}
+.hero .sub{color:var(--muted);font-size:14px;max-width:50ch}.hero .sub b{color:var(--text);font-weight:600}
+.leadstat{text-align:right;min-width:130px}
+.leadstat .big{font-family:'Saira Condensed';font-weight:700;font-size:46px;line-height:1}
+.leadstat .cap{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.bar{display:flex;align-items:center;gap:14px;margin:0 2px 10px}
+.replay{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--violet);color:var(--text);background:rgba(139,108,255,.14);
+ border-radius:10px;padding:7px 13px;font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit}
+.replay:hover{background:rgba(139,108,255,.24)}
+.clock{font-family:'IBM Plex Mono';font-size:12px;color:var(--cyan)}
+.scrub{flex:1;height:4px;border-radius:3px;background:var(--line);position:relative;overflow:hidden}
+.scrub i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan))}
+.comm{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:10px;
+ padding:9px 14px;margin-bottom:14px;background:rgba(20,26,44,.55);font-size:13px;min-height:40px}
+.arena{border:1px solid var(--line);border-radius:16px;padding:6px 0;background:rgba(13,17,30,.55);overflow:hidden}
+.lane{display:grid;grid-template-columns:38px 144px 1fr;align-items:center;gap:12px;padding:8px 16px;position:relative}
+.lane+.lane{border-top:1px solid rgba(40,48,76,.5)}
+.rk{font-family:'Saira Condensed';font-weight:700;font-size:20px;text-align:center;color:var(--muted)}
+.nm{font-family:'Saira Condensed';font-weight:600;font-size:17px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{position:relative;height:32px;border-radius:9px;border:1px solid rgba(40,48,76,.6);
+ background:repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 2px,transparent 2px 46px)}
+.startline{position:absolute;top:-4px;bottom:-4px;width:2px;background:rgba(234,237,247,.4)}
+.btcline{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--cyan);box-shadow:0 0 8px rgba(45,212,218,.8)}
+.btctag{position:absolute;top:-19px;font-size:9px;letter-spacing:.4px;color:var(--cyan);transform:translateX(-50%)}
+.startag{position:absolute;top:-19px;font-size:9px;letter-spacing:.4px;color:rgba(234,237,247,.5);transform:translateX(-50%)}
+.trail{position:absolute;top:50%;transform:translateY(-50%);height:9px;border-radius:6px;opacity:.5}
+.runner{position:absolute;top:50%;transform:translate(-50%,-50%);height:24px;display:flex;align-items:center;gap:6px;
+ padding:0 8px 0 5px;border-radius:13px;font-family:'IBM Plex Mono';font-weight:600;font-size:11.5px;white-space:nowrap;box-shadow:0 2px 9px rgba(0,0,0,.4)}
+.runner .badge{width:15px;height:15px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:700;color:#0A0D18}
+.foot{margin-top:16px;color:var(--muted);font-size:12px;display:flex;gap:20px;flex-wrap:wrap}.foot b{color:var(--text)}
+@media (prefers-reduced-motion:reduce){.runner{transition:none}}
+</style></head><body>
+<div class="hero"><div>
+  <div class="eyebrow">Leader on the board</div>
+  <h1 id="leadName">—</h1>
+  <div class="sub">A live, public race — every strategy trades <b>$1,000</b> forward, fees in. Beat the field, and beat just <b>holding BTC</b>. No real money.</div>
+</div><div class="leadstat"><div class="big" id="leadRet">—</div><div class="cap" id="leadCap"></div></div></div>
+<div class="bar"><button class="replay" id="replayBtn">&#9654; Replay the race</button>
+ <div class="clock" id="clock"></div><div class="scrub"><i id="scrubFill"></i></div></div>
+<div class="comm"><span>&#127908;</span><span id="commLine"></span></div>
+<div class="arena" id="arena"></div>
+<div class="foot">
+ <span><b>Position</b> = live P&amp;L. <b>Gold/silver/bronze</b> = top 3, <b style="color:#FB6F92">red</b> = backmarker.</span>
+ <span><b style="color:#2DD4DA">Cyan line</b> = buy-and-hold BTC, the bar to beat.</span>
+</div>
+<script>
+const DATA = __DATA__;
+const med={1:'var(--gold)',2:'var(--silver)',3:'var(--bronze)'};
+function color(r){ if(med[r.rank]) return getC(med[r.rank]);
+  if(r.status==='RED' || (r.last && r.ret<0)) return getC('var(--red)'); return getC('var(--steel)'); }
+function getC(v){const m={'var(--gold)':'#F5C451','var(--silver)':'#C9D2E3','var(--bronze)':'#D08A52','var(--red)':'#FB6F92','var(--steel)':'#7C89A8'};return m[v]||v;}
+function hexA(h,a){const n=parseInt(h.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+const R=DATA.runners; const N=R.length; R.forEach((r,i)=>r.rank=i+1); if(N) R[N-1].last=true;
+const allret=R.map(r=>r.ret).concat([DATA.btc]);
+const lo=Math.min(...allret)-0.6, hi=Math.max(...allret)+0.6, span=(hi-lo)||1;
+const X=v=>(v-lo)/span*100; const startX=X(0), btcX0=X(DATA.btc);
+function easePath(end){const p=[];for(let k=0;k<=40;k++){const t=k/40;p.push(end*(1-Math.pow(1-t,2)));}return p;}
+const H=DATA.history||{}; const hasH = H && Object.keys(H).length>2;
+R.forEach(r=>{r.col=color(r); r.path=(hasH&&H[r.nm]&&H[r.nm].length>=6)?H[r.nm]:easePath(r.ret);});
+const btcPath=(hasH&&H['__btc__']&&H['__btc__'].length>=6)?H['__btc__']:easePath(DATA.btc);
+const PL=Math.max(...R.map(r=>r.path.length), btcPath.length);
+const arena=document.getElementById('arena');
+R.forEach((r,i)=>{
+  const medal=r.rank<=3?['&#129351;','&#129352;','&#129353;'][r.rank-1]:r.rank;
+  const badge=r.pos==='long'?'L':r.pos==='short'?'S':r.pos==='market-neutral'?'N':'·';
+  const lane=document.createElement('div');lane.className='lane';
+  lane.innerHTML=`<div class="rk">${medal}</div><div class="nm" title="${r.desc||''}">${r.nm}</div>
+   <div class="track">${i===0?`<div class="startag" style="left:${startX}%">$1,000</div><div class="btctag" data-bt style="left:${btcX0}%">BTC</div>`:''}
+   <div class="startline" style="left:${startX}%"></div><div class="btcline" data-bl style="left:${btcX0}%"></div>
+   <div class="trail" data-tr></div><div class="runner" data-rn><span class="badge">${badge}</span><span data-lb>0.0%</span></div></div>`;
+  arena.appendChild(lane);
+  r._rn=lane.querySelector('[data-rn]');r._lb=lane.querySelector('[data-lb]');r._tr=lane.querySelector('[data-tr]');
+  r._rn.style.background=hexA(r.col,.16);r._rn.style.color=r.col;r._rn.style.border=`1px solid ${hexA(r.col,.55)}`;
+  r._rn.querySelector('.badge').style.background=r.col;
+  r._tr.style.background=`linear-gradient(90deg,transparent,${hexA(r.col,.6)})`;
+  if(r.rank===1) r._rn.style.boxShadow=`0 0 16px ${hexA(r.col,.7)},0 2px 9px rgba(0,0,0,.5)`;
+});
+const blines=document.querySelectorAll('[data-bl]'), btag=document.querySelectorAll('[data-bt]');
+document.getElementById('leadName').textContent = N?R[0].nm:'—';
+document.getElementById('leadRet').textContent = N?((R[0].ret>=0?'+':'')+R[0].ret.toFixed(1)+'%'):'—';
+document.getElementById('leadRet').style.color = N?R[0].col:'var(--text)';
+document.getElementById('leadCap').textContent = N?('leader · '+((R[0].ret-DATA.btc>=0?'+':'')+(R[0].ret-DATA.btc).toFixed(1))+'% vs BTC'):'';
+const lead=N?R[0].nm:'—', back=N?R[N-1].nm:'—';
+const COMM=['&#127937; '+lead+' leads the field','&#128034; tight race — most still hugging the $1,000 line',
+  '&#129460; '+back+' drifting to the back, near the cut','&#128184; only the front runners are clear of the BTC pace car'];
+let t=0,playing=true,ci=0,lastC=-1;
+const clock=document.getElementById('clock'),scrub=document.getElementById('scrubFill'),commLine=document.getElementById('commLine');
+const TOTMIN=Math.min(240,(PL-1)*5);
+function at(path,idx){const j=Math.min(path.length-1,Math.max(0,idx));return path[j];}
+function frame(){
+  if(playing){t+=0.006;if(t>=1){t=0;ci=0;lastC=-1;}}
+  const idx=Math.floor(t*(PL-1));
+  R.forEach(r=>{const v=at(r.path,idx),x=X(v);r._rn.style.left=x+'%';
+    r._tr.style.left=startX+'%';r._tr.style.width=Math.max(0,x-startX)+'%';
+    r._lb.textContent=(v>=0?'+':'')+v.toFixed(1)+'%';});
+  const bx=X(at(btcPath,idx));blines.forEach(b=>b.style.left=bx+'%');btag.forEach(b=>b.style.left=bx+'%');
+  const mins=Math.round((1-t)*TOTMIN);clock.textContent=t>0.97?'now':'−'+Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m';
+  scrub.style.width=(t*100)+'%';
+  const seg=Math.floor(t*COMM.length);if(seg!==lastC){commLine.innerHTML=COMM[Math.min(seg,COMM.length-1)];lastC=seg;}
+  requestAnimationFrame(frame);
+}
+document.getElementById('replayBtn').addEventListener('click',()=>{t=0;ci=0;lastC=-1;playing=true;});
+requestAnimationFrame(frame);
+</script></body></html>
+"""
+
+
+def render_race_board(accounts: dict, meta: dict, bench: dict, history: dict) -> None:
+    """Render the gamified live race board (custom HTML component) from the ledger."""
+    runners = []
+    for name, info in accounts.items():
+        eq = info.get("equity", info.get("balance"))
+        if eq is None:
+            continue
+        runners.append({
+            "nm": name,
+            "ret": round(info.get("return_pct", 0.0) or 0.0, 2),
+            "status": info.get("light", "ORANGE"),
+            "pos": info.get("side", "flat"),
+            "desc": STRATEGY_DESC.get(name, ""),
+        })
+    runners.sort(key=lambda r: r["ret"], reverse=True)
+    data = {
+        "runners": runners,
+        "btc": round(bench.get("return_pct", 0.0) or 0.0, 2),
+        "history": history or {},
+    }
+    height = 320 + len(runners) * 50 + 70
+    html = _RACE_TEMPLATE.replace("__DATA__", json.dumps(data))
+    components.html(html, height=height, scrolling=False)
 
 
 @st.cache_data(ttl=60)
@@ -438,28 +608,21 @@ elif tab_choice == "Market Signals":
                 st.dataframe(nw[["ts", "source", "title"]].head(30), use_container_width=True, hide_index=True)
 
 elif tab_choice == "Traffic Light":
-    st.title("Traffic Light — Live Strategy Tournament")
-    st.markdown(
-        "A **live, public experiment.** Every systematic strategy trades a real-time "
-        "**$1,000 paper account** forward — fees and slippage included. This is the **actual "
-        "live race**, not a backtest: the board moves as positions do. 🟢 = in profit, "
-        "🟠 = still proving itself, 🔴 = trailing the field and at risk of being cut. "
-        "**Buy-and-hold BTC** is shown as the bar to beat. *(Paper trading — no real money.)*"
-    )
-    with st.expander("How this works"):
+    with st.expander("How this race works"):
         st.markdown(
-            "- **The money:** every strategy starts at **$1,000** and trades the live feed "
-            "forward. The board is just the resulting balance and P&L — no made-up score.\n"
-            "- **Genuinely out-of-sample:** strategies trade forward in real time, on data "
-            "that didn't exist when they were written — the cleanest possible test (no "
-            "train/test split, nothing to curve-fit).\n"
+            "- **The grid:** every strategy starts at **$1,000** and trades the live feed "
+            "forward. Its place on the track is its real balance — no made-up score.\n"
+            "- **The podium:** 🥇🥈🥉 mark the top three; the **backmarker** turns red once "
+            "it has a real track record (**14 days live or 20 trades**) and is then at risk "
+            "of being cut.\n"
+            "- **The pace car:** the cyan line is **buy-and-hold BTC** — the bar every "
+            "strategy is really trying to beat.\n"
+            "- **Genuinely out-of-sample:** strategies race forward in real time, on data "
+            "that didn't exist when they were written — nothing curve-fit.\n"
             "- **Costs are real:** 0.1% taker fee + ~2bp slippage on every entry and exit.\n"
-            "- **The lights:** 🟢 in profit · 🟠 still proving (or middling) · 🔴 the worst "
-            "few, about to be excluded. A strategy stays 🟠 until it has a real track record "
-            "(**14 days live or 20 trades**) before it can be judged or cut.\n"
-            "- **Benchmark:** buy-and-hold BTC — beating that is the real bar.\n"
-            "- **No auto-trading:** the live set is only ever changed by a human.\n"
-            "- Updates every few minutes against a self-hosted price lake."
+            "- **No auto-trading:** the live field is only ever changed by a human.\n"
+            "- Updates every few minutes against a self-hosted price lake. "
+            "*(Paper trading — no real money.)*"
         )
 
     ledger = load_paper_accounts()
@@ -475,9 +638,12 @@ elif tab_choice == "Traffic Light":
     else:
         _updated = meta.get("last_tick_ts", "—")
         st.caption(
-            f"Live · each strategy trades $1,000 forward · {len(accounts)} in the race · "
+            f"Live · {len(accounts)} strategies trading $1,000 forward · "
             f"updated {_updated} · BTC regime: {meta.get('regime', '—')}"
         )
+
+        # ── the gamified live race board (custom HTML component) ────────────────
+        render_race_board(accounts, meta, bench, load_equity_history())
 
         def _money(x, signed=False):
             if x is None:
@@ -485,67 +651,37 @@ elif tab_choice == "Traffic Light":
             sign = "+" if (signed and x >= 0) else ("-" if (signed and x < 0) else "")
             return f"{sign}${abs(x):,.0f}"
 
-        rows = []
-        for name, info in accounts.items():
-            eq = info.get("equity", info.get("balance"))
-            rows.append({
-                "name": name,
-                "light": info.get("light", "ORANGE"),
-                "equity": eq,
-                "pnl": info.get("pnl"),
-                "ret": info.get("return_pct"),
-                "trades": info.get("trade_count", 0) or 0,
-                "win": info.get("win_rate", 0.0) or 0.0,
-                "pos": info.get("side", "flat"),
-            })
-        rows.sort(key=lambda r: (r["equity"] is not None, r["equity"] if r["equity"] is not None else -1e9), reverse=True)
-
-        table = [{
-            "": LIGHT_EMOJI.get(r["light"], "⚪"),
-            "Strategy": r["name"],
-            "What it does": STRATEGY_DESC.get(r["name"], "—"),
-            "Balance": _money(r["equity"]),
-            "P&L": _money(r["pnl"], signed=True),
-            "Return": f"{r['ret']:+.1f}%" if r["ret"] is not None else "—",
-            "Trades": r["trades"],
-            "Win %": f"{r['win'] * 100:.0f}%" if r["trades"] else "—",
-            "Now": r["pos"],
-        } for r in rows]
-        # buy-and-hold BTC benchmark as the bar to beat
-        if bench.get("balance") is not None:
-            table.append({
-                "": "⚪", "Strategy": "Buy & Hold BTC", "What it does": "benchmark — just hold BTC",
-                "Balance": _money(bench.get("balance")),
-                "P&L": _money((bench.get("balance") or 0) - 1000.0, signed=True),
-                "Return": f"{bench.get('return_pct', 0):+.1f}%",
-                "Trades": "—", "Win %": "—", "Now": "hold",
-            })
-        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
-        st.caption("🟢 in profit · 🟠 still proving / middling · 🔴 worst few, about to be excluded. ⚪ = benchmark.")
-
-        # ── balance bars (coloured by light, $1,000 start + buy-and-hold lines) ──
-        plotted = [r for r in rows if r["equity"] is not None]
-        if plotted:
-            st.markdown("---")
-            st.subheader("$1,000 live paper accounts — where each stands now")
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=[r["name"] for r in plotted],
-                y=[r["equity"] for r in plotted],
-                marker_color=[LIGHT_COLOURS.get(r["light"], "#888") for r in plotted],
-                text=[_money(r["equity"]) for r in plotted],
-                textposition="outside",
-                hovertemplate="%{x}<br>%{y:$,.0f}<extra></extra>",
-            ))
-            fig.add_hline(y=1000, line_dash="dash", line_color="#9b93b5",
-                          annotation_text="$1,000 start", annotation_position="right")
-            if bench.get("balance"):
-                fig.add_hline(y=bench["balance"], line_dash="dot", line_color="#f5a623",
-                              annotation_text="buy & hold BTC", annotation_position="left")
-            fig.update_layout(height=380, yaxis_title="account value (USD)", xaxis_title="",
-                              margin=dict(t=20, b=80), plot_bgcolor="rgba(0,0,0,0)",
-                              paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True)
+        with st.expander("Full standings & numbers"):
+            rows = []
+            for name, info in accounts.items():
+                eq = info.get("equity", info.get("balance"))
+                rows.append({
+                    "name": name, "light": info.get("light", "ORANGE"), "equity": eq,
+                    "pnl": info.get("pnl"), "ret": info.get("return_pct"),
+                    "trades": info.get("trade_count", 0) or 0,
+                    "win": info.get("win_rate", 0.0) or 0.0, "pos": info.get("side", "flat"),
+                })
+            rows.sort(key=lambda r: (r["equity"] is not None, r["equity"] if r["equity"] is not None else -1e9), reverse=True)
+            table = [{
+                "#": i + 1,
+                "Strategy": r["name"],
+                "What it does": STRATEGY_DESC.get(r["name"], "—"),
+                "Balance": _money(r["equity"]),
+                "P&L": _money(r["pnl"], signed=True),
+                "Return": f"{r['ret']:+.1f}%" if r["ret"] is not None else "—",
+                "Trades": r["trades"],
+                "Win %": f"{r['win'] * 100:.0f}%" if r["trades"] else "—",
+                "Now": r["pos"],
+            } for i, r in enumerate(rows)]
+            if bench.get("balance") is not None:
+                table.append({
+                    "#": "—", "Strategy": "Buy & Hold BTC", "What it does": "benchmark — just hold BTC",
+                    "Balance": _money(bench.get("balance")),
+                    "P&L": _money((bench.get("balance") or 0) - 1000.0, signed=True),
+                    "Return": f"{bench.get('return_pct', 0):+.1f}%",
+                    "Trades": "—", "Win %": "—", "Now": "hold",
+                })
+            st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
 
 # ── Tab: Equity Curves ────────────────────────────────────────────────────────
 

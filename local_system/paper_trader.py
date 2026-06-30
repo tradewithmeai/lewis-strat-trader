@@ -39,6 +39,7 @@ STATE_DIR = ROOT / "state"
 STATUS_FILE = STATE_DIR / "status.json"
 ACCOUNTS_FILE = STATE_DIR / "paper_accounts.json"
 PAPER_TRADES_FILE = STATE_DIR / "paper_trades.jsonl"
+EQUITY_HISTORY_FILE = STATE_DIR / "equity_history.jsonl"  # per-tick standings, for the race replay
 
 SYMBOL = "BTCUSDT"
 TICK_SEC = 300            # re-evaluate every 5 minutes
@@ -312,6 +313,26 @@ def _save_ledger(accounts: dict, benchmark: dict, price: float, bar_ts: str,
     }, indent=2))
 
 
+def _append_equity_history(accounts: dict, benchmark: dict, extra: dict | None, tick: int) -> None:
+    """Append this tick's standings so the dashboard can replay the race. Append-only;
+    trimmed to the last ~3000 rows once a day so it can't grow without bound."""
+    try:
+        eq = {name: a.equity for name, a in accounts.items()}
+        if extra:
+            for name, a in extra.items():
+                if a.get("equity") is not None:
+                    eq[name] = a["equity"]
+        row = {"ts": _now_iso(), "eq": eq, "btc": benchmark.get("balance")}
+        with open(EQUITY_HISTORY_FILE, "a") as f:
+            f.write(json.dumps(row) + "\n")
+        if tick % 288 == 0 and EQUITY_HISTORY_FILE.exists():  # ~daily trim
+            lines = EQUITY_HISTORY_FILE.read_text().splitlines()
+            if len(lines) > 3000:
+                _atomic_write(EQUITY_HISTORY_FILE, "\n".join(lines[-3000:]) + "\n")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[paper_trader] equity-history append failed: {exc}", flush=True)
+
+
 def _update_benchmark(benchmark: dict, price: float) -> dict:
     """Buy-and-hold BTC from the board's inception."""
     if not benchmark.get("start_price"):
@@ -407,6 +428,7 @@ async def run_loop() -> None:
 
             _save_ledger(accounts, benchmark, price, bar_ts, regime,
                          extra_accounts=portfolio_cache or None)
+            _append_equity_history(accounts, benchmark, portfolio_cache or None, tick)
 
             leader = max(accounts.values(), key=lambda a: a.equity)
             print(

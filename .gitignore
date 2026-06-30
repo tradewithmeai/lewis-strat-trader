@@ -41,6 +41,7 @@ state/lake_rollup/
 # Live paper-trade runtime ledger (per-machine, written by paper_trader)
 state/paper_accounts.json
 state/status.json
+state/equity_history.jsonl
 
 # CCE (code-context-engine)
 # CCE local cache (per-machine, not for version control)
