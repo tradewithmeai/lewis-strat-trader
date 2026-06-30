@@ -54,6 +54,16 @@ multiplies false positives.
   replicate cryptolake. A TradFi idea graduates to a live paper account only after
   it clears the rigor gate *and* the Captain approves. (Also feeds the
   dissertation's crypto-vs-efficient-markets comparison.)
+- **Portfolio / cross-sectional research (the validated direction).** The
+  literature + our Phase-2 tests show single-asset directional timing is the
+  empty pond; the real edges are cross-sectional / market-neutral and
+  diversified-trend. Use `local_system/portfolio_backtester.py`
+  (cross_sectional_backtest, timeseries_trend_backtest, cash_and_carry_backtest;
+  risk-parity, vol-target overlay, per-year Sharpe, bootstrap CI). Findings &
+  the gate-passing/failing status of each are in
+  `docs/PAPER/STRATEGY_RESEARCH.md` — READ IT before proposing portfolio work so
+  you build on the leads (crypto cross-sectional momentum is live on the board;
+  carry is real-but-marginal; trend needs breadth) rather than repeating them.
 - **Event/opportunity research via the events DB.** Extend the scaffolded
   `local_system/signals/news/event_db.py` (the historical+live event table with
   per-event market reaction). Add the `EXTEND` hooks: LLM categorisation,
