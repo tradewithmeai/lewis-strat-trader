@@ -1114,3 +1114,55 @@ random); crypto strategies transplanted to TradFi (≈ chance). All recorded.
 
 **Next:** Darren grinds trend breadth + cross-sectional refinement within the
 gate; watch `xsec_momentum`'s forward record (does the 2026 decay continue?).
+
+## 2026-06-30 20:30 UTC — Gamified live race board + community-strategy submissions (ideas-not-code, engagement-first) [commits ce44eb4..a882a00]
+**Context:** The morning's reframing settled the *research* direction; the
+afternoon turned to the *public face*. Owner's brief: the dashboard read like a
+"90s site that just found the colour palette" — wanted it simplified, slightly
+gamified, fun, "AI-age cool" (Dribbble-referenced). Then a north-star feature:
+let visitors **suggest** strategies via the site; Darren reviews weekly, codifies
+the best, and adds it to the live race.
+**Did:**
+- Captured Darren's two overnight nulls first (combined-premia + trend-breadth)
+  so the research record stayed straight before the UI work (ce44eb4, 8290c33).
+- Redesigned the tournament leaderboard as a **live race board**: runners as
+  tokens on a track, $1000 start gate, cyan BTC pace line, gold/silver/bronze +
+  red-backmarker colour-by-standing, a 4-hour fast replay (reads
+  `equity_history.jsonl`, eases start→now when history is thin), and a commentary
+  ticker. Saira Condensed / Inter / IBM Plex Mono. Built as a mockup first
+  (4297c81, 51ecce7), then wired live into `dashboard.py` via
+  `components.html`, with `paper_trader.py` now appending per-tick standings to
+  `state/equity_history.jsonl` for the replay (e745adc).
+- **Anchored + displayed the race start** ("RACING SINCE 27 JUN 2026 · DAY N")
+  from the earliest account inception (5f02708).
+- **Community feature P1+P2:** low-friction free-text "Enter your own strategy"
+  panel — **text/ideas only, no code field by design** (arbitrary-code-execution
+  guard) — appended to `state/submissions.jsonl` with length validation
+  (ab7318c). P2 attribution: lanes show **"by @handle"** + a **★ pick** chip for
+  the most-recent within-7-days pick; `load_community()` reads
+  `state/community_strategies.json` (a8008d8, a882a00).
+- Documented the design + policy: `docs/COMMUNITY_STRATEGIES.md` (text-only,
+  Terry-the-tortoise voice, the 4-step "how Darren adds a pick" convention),
+  and expanded `docs/DARREN_CHARTER.md` with the weekly community routine
+  (feef0ca). Handed the weekly cron brief to the owner → forwarded to Darren.
+**Tested:** Verified live on stratbot.solvx.uk via Playwright screenshots at each
+step (race board renders + animates; start label correct; 13 lanes with red
+backmarkers; submission form below the board; attribution lane shows
+"by @terrys_human · ★ pick"). Dashboard `active` / HTTP 200 after each restart.
+Temp attribution test entry written, screenshotted, then removed — board clean.
+**Decided:** (1) Race entry is a **deliberately low bar — engagement-first, NOT
+gated on the rigor gate**; the cull removes paper losers safely, so a weak
+community pick fails honestly. The rigor gate stays reserved for
+validated-edge / real-money decisions only. (2) Submissions are **ideas, never
+code** — Darren+Claude translate an idea into a strategy from existing building
+blocks; the public never supplies executable code. (3) Shortened the chip
+"★ pick of the week" → "★ pick" because the longer label truncated in the 170px
+name column.
+**Dead-ends / caveats:** v1 race styling "did not come across visually" (owner) —
+rebuilt as the animated v2 before it landed. `file://` is blocked in Playwright
+(served mockups via a local http.server). Full-page screenshot clipped at the
+iframe — used a tall viewport to capture the form beneath.
+**Next:** Darren runs the weekly community-pick routine (brief delivered); let the
+system settle and watch the forward board. Polish queued (not started): unify the
+global Streamlit font around the modern board, equity-curve visualisations,
+fuller strategy explanations.
