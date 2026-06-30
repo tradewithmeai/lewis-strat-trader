@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>stratbot · live strategy tournament</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root{
+  --ink:#0A0D18; --ink2:#10141F; --panel:#161B30; --panel2:#1E2540;
+  --line:#28304C; --text:#EAEDF7; --muted:#8A93AD;
+  --violet:#8B6CFF; --cyan:#2DD4DA;
+  --green:#3DDC97; --amber:#F5B544; --red:#FB6F92;
+  --gold:#F5C451; --silver:#C9D2E3; --bronze:#D08A52;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{ -webkit-text-size-adjust:100% }
+body{
+  font-family:'Inter',system-ui,sans-serif; color:var(--text);
+  background:
+    radial-gradient(1100px 600px at 78% -8%, rgba(139,108,255,.16), transparent 60%),
+    radial-gradient(900px 500px at 10% 4%, rgba(45,212,218,.08), transparent 55%),
+    linear-gradient(180deg,#0B0F1C 0%, var(--ink) 40%);
+  min-height:100vh; line-height:1.5; letter-spacing:.1px;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 22px 64px}
+
+/* ---- top bar ---- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px}
+.brand{display:flex;align-items:center;gap:11px;font-family:'Saira Condensed';font-weight:700;
+  font-size:23px;letter-spacing:.5px;text-transform:uppercase}
+.sig{width:13px;height:24px;border-radius:4px;background:linear-gradient(180deg,var(--green),var(--amber) 50%,var(--red));
+  box-shadow:0 0 14px rgba(245,181,68,.5)}
+.live{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 0 rgba(45,212,218,.6);
+  animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(45,212,218,.5)}70%{box-shadow:0 0 0 7px rgba(45,212,218,0)}100%{box-shadow:0 0 0 0 rgba(45,212,218,0)}}
+.live b{color:var(--text);font-weight:600}
+
+/* ---- hero leader ---- */
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;flex-wrap:wrap;
+  padding:24px 26px;border:1px solid var(--line);border-radius:18px;margin-bottom:8px;
+  background:linear-gradient(135deg, rgba(139,108,255,.14), rgba(22,27,48,.5) 55%);
+  position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(420px 200px at 88% 120%, rgba(61,220,151,.12), transparent 60%);pointer-events:none}
+.eyebrow{font-size:11.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--violet);font-weight:600}
+.hero h1{font-family:'Saira Condensed';font-weight:700;font-size:clamp(40px,7vw,72px);line-height:.95;
+  text-wrap:balance;margin:8px 0 4px;letter-spacing:.5px}
+.hero h1 .nm{color:var(--text)}
+.hero .sub{color:var(--muted);font-size:15px;max-width:46ch}
+.hero .sub b{color:var(--text);font-weight:600}
+.leadstat{text-align:right;min-width:150px}
+.leadstat .big{font-family:'Saira Condensed';font-weight:700;font-size:54px;line-height:1;color:var(--green)}
+.leadstat .cap{font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:6px}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:12.5px;margin:18px 2px 14px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.dotc{width:9px;height:9px;border-radius:50%}
+
+/* ---- board ---- */
+.board{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:rgba(16,20,31,.55);backdrop-filter:blur(2px)}
+.lane{display:grid;grid-template-columns:46px 1fr 132px;align-items:center;gap:16px;
+  padding:14px 20px;border-top:1px solid rgba(40,48,76,.6);position:relative}
+.lane:first-child{border-top:none}
+.lane.lead{background:linear-gradient(90deg, rgba(139,108,255,.12), transparent 70%)}
+.lane.bench{background:repeating-linear-gradient(90deg,rgba(45,212,218,.05) 0 10px,transparent 10px 20px)}
+
+.rank{font-family:'Saira Condensed';font-weight:700;font-size:26px;text-align:center;color:var(--muted)}
+.rank.m1{color:var(--gold)} .rank.m2{color:var(--silver)} .rank.m3{color:var(--bronze)}
+
+.who{min-width:0}
+.who .nm{font-family:'Saira Condensed';font-weight:600;font-size:21px;letter-spacing:.4px;display:flex;align-items:center;gap:9px}
+.who .nm .pos{font-family:'Inter';font-weight:600;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;
+  padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+.who .nm .pos.long{color:var(--green);border-color:rgba(61,220,151,.4)}
+.who .nm .pos.flat{color:var(--muted)}
+.who .nm .pos.mn{color:var(--cyan);border-color:rgba(45,212,218,.4)}
+.who .desc{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+/* track */
+.track{position:relative;height:30px;margin-top:9px;border-radius:8px;background:rgba(10,13,24,.6);
+  border:1px solid rgba(40,48,76,.7);overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;border-radius:8px 0 0 8px;
+  transform-origin:left;animation:grow 1.05s cubic-bezier(.2,.7,.2,1) both}
+@keyframes grow{from{transform:scaleX(.02)}to{transform:scaleX(1)}}
+.fill.g{background:linear-gradient(90deg,rgba(61,220,151,.25),rgba(61,220,151,.55))}
+.fill.a{background:linear-gradient(90deg,rgba(245,181,68,.18),rgba(245,181,68,.45))}
+.fill.r{background:linear-gradient(90deg,rgba(251,111,146,.18),rgba(251,111,146,.5))}
+.lane.lead .fill{box-shadow:0 0 18px rgba(139,108,255,.55) inset, 0 0 16px rgba(139,108,255,.35)}
+.cap-line{position:absolute;top:-3px;bottom:-3px;width:2px}
+.cap-line.start{background:rgba(234,237,247,.35)}
+.cap-line.btc{background:var(--cyan);box-shadow:0 0 8px rgba(45,212,218,.7)}
+.cap-tag{position:absolute;top:-19px;font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;transform:translateX(-50%);white-space:nowrap}
+.cap-tag.start{color:rgba(234,237,247,.5)}
+.cap-tag.btc{color:var(--cyan)}
+
+.stat{text-align:right;font-variant-numeric:tabular-nums}
+.stat .bal{font-family:'IBM Plex Mono';font-weight:600;font-size:17px}
+.stat .pnl{font-family:'IBM Plex Mono';font-size:12.5px;margin-top:2px}
+.pos-up{color:var(--green)} .pos-dn{color:var(--red)} .flat{color:var(--muted)}
+.pill{display:inline-block;margin-top:5px;font-size:10px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;
+  padding:2px 8px;border-radius:20px}
+.pill.g{color:var(--green);background:rgba(61,220,151,.12)}
+.pill.a{color:var(--amber);background:rgba(245,181,68,.12)}
+.pill.r{color:var(--red);background:rgba(251,111,146,.12)}
+.pill.b{color:var(--cyan);background:rgba(45,212,218,.1)}
+
+.foot{margin-top:22px;color:var(--muted);font-size:12.5px;display:flex;gap:24px;flex-wrap:wrap}
+.foot b{color:var(--text);font-weight:600}
+@media (max-width:680px){
+  .lane{grid-template-columns:32px 1fr;}
+  .stat{grid-column:2;text-align:left;display:flex;gap:14px;align-items:baseline;margin-top:6px}
+  .who .desc{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){.fill{animation:none}.dot{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand"><span class="sig"></span> stratbot</div>
+    <div class="live"><span class="dot"></span> Live · racing since <b>Jun 27</b> · BTC regime <b>bear</b> · 13 in the field</div>
+  </div>
+
+  <!-- HERO: the thesis is who's out front -->
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Out front right now</div>
+      <h1><span class="nm">mtf_bb_vol</span></h1>
+      <div class="sub">A real-time, public race: every strategy trades <b>$1,000</b> forward — fees in. The bar to beat is just <b>holding BTC</b>. No real money.</div>
+    </div>
+    <div class="leadstat">
+      <div class="big">+1.6%</div>
+      <div class="cap">leader · +2.2% vs BTC</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dotc" style="background:var(--green)"></span> in profit</span>
+    <span><span class="dotc" style="background:var(--amber)"></span> still proving (warm-up)</span>
+    <span><span class="dotc" style="background:var(--red)"></span> trailing — at risk of being cut</span>
+    <span><span class="dotc" style="background:var(--cyan)"></span> buy &amp; hold BTC — the pace line</span>
+  </div>
+
+  <!-- RACE BOARD -->
+  <div class="board">
+
+    <div class="lane lead">
+      <div class="rank m1">1</div>
+      <div class="who">
+        <div class="nm">mtf_bb_vol <span class="pos long">long</span></div>
+        <div class="desc">Bollinger bands gated by a relative-volume spike</div>
+        <div class="track">
+          <div class="fill a" style="width:93.8%"></div>
+          <div class="cap-line start" style="left:69.2%"></div><div class="cap-tag start" style="left:69.2%">$1,000</div>
+          <div class="cap-line btc" style="left:60%"></div><div class="cap-tag btc" style="left:60%">BTC</div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$1,016</div><div class="pnl pos-up">+$16 · +1.6%</div><span class="pill a">proving</span></div>
+    </div>
+
+    <div class="lane">
+      <div class="rank m2">2</div>
+      <div class="who">
+        <div class="nm">bb_rsi_dip <span class="pos flat">flat</span></div>
+        <div class="desc">Buys dips below the lower Bollinger band when RSI is oversold</div>
+        <div class="track">
+          <div class="fill a" style="width:81.5%"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$1,008</div><div class="pnl pos-up">+$8 · +0.8%</div><span class="pill a">proving</span></div>
+    </div>
+
+    <div class="lane">
+      <div class="rank m3">3</div>
+      <div class="who">
+        <div class="nm">xsec_momentum <span class="pos mn">market-neutral</span></div>
+        <div class="desc">Ranks the whole crypto universe — longs the strongest, shorts the weakest</div>
+        <div class="track">
+          <div class="fill a" style="width:69.2%"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$1,000</div><div class="pnl flat">$0 · 0.0%</div><span class="pill a">proving</span></div>
+    </div>
+
+    <div class="lane bench">
+      <div class="rank">—</div>
+      <div class="who">
+        <div class="nm" style="color:var(--cyan)">Buy &amp; Hold BTC <span class="pos mn">pace</span></div>
+        <div class="desc">The benchmark — just hold bitcoin and do nothing</div>
+        <div class="track">
+          <div class="fill" style="width:60%;background:repeating-linear-gradient(90deg,rgba(45,212,218,.22) 0 8px,transparent 8px 16px)"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$994</div><div class="pnl pos-dn">−$6 · −0.6%</div><span class="pill b">benchmark</span></div>
+    </div>
+
+    <div class="lane">
+      <div class="rank">4</div>
+      <div class="who">
+        <div class="nm">breakout <span class="pos flat">flat</span></div>
+        <div class="desc">Buys N-day highs, exits on lows (momentum breakout)</div>
+        <div class="track">
+          <div class="fill r" style="width:63%"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$996</div><div class="pnl pos-dn">−$4 · −0.4%</div><span class="pill a">proving</span></div>
+    </div>
+
+    <div class="lane">
+      <div class="rank">5</div>
+      <div class="who">
+        <div class="nm">ema_crossover <span class="pos long">long</span></div>
+        <div class="desc">Trend-following: fast EMA crosses slow, with a trend filter</div>
+        <div class="track">
+          <div class="fill r" style="width:24.6%"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$971</div><div class="pnl pos-dn">−$29 · −2.9%</div><span class="pill r">at risk</span></div>
+    </div>
+
+    <div class="lane">
+      <div class="rank">6</div>
+      <div class="who">
+        <div class="nm">markov_regime <span class="pos long">long</span></div>
+        <div class="desc">RSI signals filtered by a bull/bear/sideways regime model</div>
+        <div class="track">
+          <div class="fill r" style="width:10.8%"></div>
+          <div class="cap-line start" style="left:69.2%"></div>
+          <div class="cap-line btc" style="left:60%"></div>
+        </div>
+      </div>
+      <div class="stat"><div class="bal">$962</div><div class="pnl pos-dn">−$38 · −3.8%</div><span class="pill r">at risk</span></div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span><b>Genuinely out-of-sample.</b> Strategies trade forward in real time — nothing curve-fit.</span>
+    <span><b>The cut:</b> the bottom three turn red once they've a real track record.</span>
+    <span><b>Updates</b> every few minutes from a self-hosted price lake.</span>
+  </div>
+
+</div>
+</body>
+</html>
