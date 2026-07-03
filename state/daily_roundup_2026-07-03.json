@@ -1,0 +1,47 @@
+{
+  "date": "2026-07-03",
+  "roundup": {
+    "cryptolake": "active",
+    "signals_monitor": "ok/inactive",
+    "lake_snapshot": "failed",
+    "dashboard": "active",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 33,
+    "mem_available_gib": 4.1,
+    "swap_free_gib": 3.0,
+    "outage": true,
+    "outage_detail": "lake snapshot upload failed: rclone could not refresh Google Drive token (access_not_configured / account restricted)",
+    "live_board": "xsec_momentum active; board mostly orange"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + TradFi loader sanity + event DB sanity",
+    "sanity": {
+      "event_rows": 35350,
+      "event_reaction_rows": 34878,
+      "tradfi": {
+        "GC=F": 630,
+        "^GSPC": 627
+      }
+    },
+    "full_history": {
+      "sharpe": 3.44,
+      "ci": [1.22, 5.98],
+      "ann_return_pct": 2.63,
+      "ann_vol_pct": 0.76,
+      "max_drawdown_pct": -6.38,
+      "year_sharpe": {
+        "2023": 7.73,
+        "2024": 12.59,
+        "2025": -3.72,
+        "2026": -12.83
+      }
+    },
+    "stress": {
+      "0.75": {"sharpe": 0.93, "ci": [-1.32, 3.56]},
+      "0.50": {"sharpe": -2.34, "ci": [-4.43, 0.21]}
+    },
+    "gate": "not_challenger"
+  }
+}

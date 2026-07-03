@@ -10,7 +10,7 @@ itself the contribution: it reproduces, on our own data and infrastructure, the
 well-documented failure of single-asset price-timing — and motivates a reframing
 toward the strategy classes the literature actually supports.
 
-_Last updated: 2026-06-30._
+_Last updated: 2026-07-01._
 
 ## 1. What we built (method)
 
@@ -243,3 +243,23 @@ sign pattern failed because 2026 flipped negative.
 Verdict: honest null — diversification helped versus the passive beta basket,
 but the combined book did not clear the full gate (best-sleeve hurdle + sign
 consistency).
+
+### Cash-and-carry hardening sweep (2026-07-01)
+
+I re-ran the funding-carry thread with a stricter, forward-checkable setup: I
+reconstructed the full 12-symbol funding history by paginating Binance's
+`fundingRate` endpoint from 2023-01-01 to 2026-06-30, then kept the same fixed
+7d rolling-sign rule and 10 bp/leg execution cost while stress-testing a small
+set of funding haircuts (search size = 5).
+
+| haircut | Sharpe (95% CI) | ann ret | ann vol | maxDD | per-year Sharpe |
+|---|---|---:|---:|---:|---|
+| 1.00 | 3.44 (1.22, 5.98) | +2.63% | +0.76% | −6.38% | 2023:+7.73, 2024:+12.59, 2025:−3.72, 2026:−12.83 |
+| 0.75 | 0.93 (−1.32, 3.56) | +0.63% | +0.67% | −7.60% | 2023:+4.61, 2024:+10.76, 2025:−5.85, 2026:−14.13 |
+| 0.50 | **−2.34 (−4.43, 0.21)** | **−1.38%** | +0.59% | −8.84% | 2023:+0.59, 2024:+7.61, 2025:−8.12, 2026:−15.40 |
+
+Interpretation: the raw funding stream is real, but the headline Sharpe is still
+an upper-bound / perfect-hedge artefact. Once haircut toward live carry
+frictions (borrow, basis, hedge slippage), the edge vanishes and the per-year
+sign check fails hard. This is not a challenger; it is the ceiling we should use
+to stop over-comparing carry against other sleeves.
