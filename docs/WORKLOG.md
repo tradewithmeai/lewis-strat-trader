@@ -1166,3 +1166,54 @@ iframe — used a tall viewport to capture the form beneath.
 system settle and watch the forward board. Polish queued (not started): unify the
 global Streamlit font around the modern board, equity-curve visualisations,
 fuller strategy explanations.
+
+## 2026-07-17 00:40 UTC — Check-in after 14 days autonomous + full VPS migration plan [commits 8085d5d, pending]
+**Context:** Two weeks hands-off since Jul 3 (deliberate settling period). Owner
+asked for: a general progress check on Darren + the live site, verification
+that cryptolake ran correctly, and a lock-stock migration plan for everything
+on the VPS. Also: determine whether Darren's apparent strategy-range broadening
+was self-improvement or our instruction.
+**Did:** Full health sweep + migration inventory over SSH; salvaged Darren's 14
+days of uncommitted work (32 files → commit 8085d5d, box reconciled clean via
+hash-verified pointer move); captured the live board at day 20
+(docs/design/live_day20.png); wrote docs/VPS_MIGRATION_2026-07.md from the live
+inventory, then hardened it with a three-lens adversarial review (data
+integrity / cutover ordering / completeness+secrets) — 34 findings integrated.
+**Tested / observed:**
+- cryptolake: healthy through a Jul 12 box reboot (all services auto-recovered,
+  0 restarts since); writing steadily — 27,308 lake files in the prior 12h,
+  health line msgs=175M bars=5.6M; API 200. Lake = 4.1G parquet / 111,927
+  files + 5.2G raw zstd.
+- gdrive lake-snapshot: FIXED (was token-dead Jul 3); Jul 16 run exit 0.
+- Darren: 16/16 daily crons fired 05:00 UTC (Jul 1-16), all within budget
+  (20-37 of 150 api calls). Board day 20: bb_rsi_dip +4.8% leads, regime_bb
+  +2.3%, markov_regime -15.2% (cull candidate); BTC benchmark ≈ +5.8% — field
+  still behind buy-and-hold, board reports it honestly. Zero community
+  submissions to date.
+**Decided:**
+- Broadening question answered: **direct instruction, not self-improvement.**
+  Cron prompt on the box is byte-identical to the one we wrote; all 14 reports
+  worked exactly the prompt's named priority thread (carry hardening) +
+  secondary (two-sleeve combo); the TradFi/events breadth is the charter's
+  toolkit list. Side-effect discovered: the pinned priority thread caused a
+  14-day rut — Darren re-killed cash-and-carry daily with drifting
+  methodology (10bp→5bp legs, full-history→2026-only slices). Prompt needs a
+  "thread has a documented verdict → pick a NEW hypothesis" clause; also the
+  prompt's own "never schedule jobs" line is why the weekly community-pick
+  cron was never registered.
+- Migration plan decisions: sequential collector handover (<15 min gap,
+  timeboxed with restart-old fallback) over parallel capture; disable (not
+  stop) old-box units — linger + enabled units + a reboot would resurrect dual
+  writers; no consolidation on either box between bulk copy and full checksum
+  verify; claude credentials never copied (fresh login), ~/.claude moved with
+  --exclude; certs re-issued (DNS-01 pre-issue preferred) rather than copied.
+**Dead-ends / caveats:** Jul 15 Hermes run had a failed file-edit (patch
+mismatch on STRATEGY_RESEARCH.md — caught by its verifier); Jul 12/15 daily
+reports exist only as cron outputs, not repo files. First draft of the
+migration plan had real holes the review caught: enabled-units-survive-reboot,
+consolidation racing the transfer, nginx certbot configs failing nginx -t on a
+cert-less box, no old→new ssh trust for the transfer itself, du -s as a false
+integrity check.
+**Next:** Owner picks target box + window (plan §12); fix the dream-prompt rut
+clause + register the weekly community cron when next briefing Darren;
+migration executes per the plan's phase gates.
