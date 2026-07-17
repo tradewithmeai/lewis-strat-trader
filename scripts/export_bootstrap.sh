@@ -22,6 +22,7 @@ set -uo pipefail
 shopt -s nullglob
 
 H=/home/kc-user
+export PATH="$H/.local/bin:$PATH"   # so node/claude versions resolve for the MANIFEST
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 STAGE=$(mktemp -d)
 OUT="$H/stratbot-bootstrap-$STAMP.tgz"
@@ -88,8 +89,8 @@ HVENV="$H/.hermes/hermes-agent/venv/bin/pip"
   echo "   Fallback reinstall recipe if that tarball is lost:"
   echo "     node prefix: ~/.hermes/node   node: $(node --version 2>/dev/null)"
   echo "     claude-code: npm i -g @anthropic-ai/claude-code  (installed: $(claude --version 2>/dev/null))"
-  echo "     hermes pip:  $("$HVENV" show hermes-agent 2>/dev/null | grep -iE '^(Name|Version):' | tr '\n' ' ')"
-  echo "     PKG-INFO:    $(grep -i '^Version:' "$H/.hermes/hermes-agent/hermes_agent.egg-info/PKG-INFO" 2>/dev/null | head -1)"
+  echo "     hermes pkg:  $(grep -iE '^(Name|Version):' "$H/.hermes/hermes-agent/hermes_agent.egg-info/PKG-INFO" 2>/dev/null | tr '\n' ' ')"
+  echo "     hermes svc:  $(grep -h ExecStart "$H/.config/systemd/user/hermes-gateway.service" 2>/dev/null | sed 's/^/       /')"
   echo
   echo "## env vars set in unit drop-ins (values captured inside the copied units):"
   echo "   LAKE_ROOT, DASHBOARD_ADMIN_PASSWORD (in stratbot-dashboard drop-in)"
