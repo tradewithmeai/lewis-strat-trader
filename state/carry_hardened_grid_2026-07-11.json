@@ -1,0 +1,223 @@
+{
+  "ts": "2026-07-11T05:02:26.931764+00:00",
+  "window": {
+    "start": "2023-05-03 16:00:00.011000+00:00",
+    "end": "2026-07-11 00:00:00+00:00",
+    "symbols": [
+      "ADAUSDT",
+      "AVAXUSDT",
+      "BNBUSDT",
+      "BTCUSDT",
+      "DOGEUSDT",
+      "DOTUSDT",
+      "ETHUSDT",
+      "LINKUSDT",
+      "LTCUSDT",
+      "SOLUSDT",
+      "SUIUSDT",
+      "XRPUSDT"
+    ],
+    "search_size": 5
+  },
+  "sanity": {
+    "event_rows": 35350,
+    "tradfi": {
+      "GC=F": 2393,
+      "^GSPC": 2392
+    }
+  },
+  "symbol_meta": {
+    "ADAUSDT": {
+      "rows": 7094,
+      "start": "2020-01-19 16:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "AVAXUSDT": {
+      "rows": 6353,
+      "start": "2020-09-22 16:00:00.004000+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "BNBUSDT": {
+      "rows": 7029,
+      "start": "2020-02-10 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "BTCUSDT": {
+      "rows": 7488,
+      "start": "2019-09-10 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "DOGEUSDT": {
+      "rows": 6576,
+      "start": "2020-07-10 08:00:00.001000+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "DOTUSDT": {
+      "rows": 6453,
+      "start": "2020-08-20 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "ETHUSDT": {
+      "rows": 7254,
+      "start": "2019-11-27 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "LINKUSDT": {
+      "rows": 7101,
+      "start": "2020-01-17 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "LTCUSDT": {
+      "rows": 7125,
+      "start": "2020-01-09 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "SOLUSDT": {
+      "rows": 6455,
+      "start": "2020-09-13 16:00:00.004000+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "SUIUSDT": {
+      "rows": 3494,
+      "start": "2023-05-03 16:00:00.011000+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    },
+    "XRPUSDT": {
+      "rows": 7134,
+      "start": "2020-01-06 08:00:00+00:00",
+      "end": "2026-07-11 00:00:00+00:00"
+    }
+  },
+  "results": [
+    {
+      "haircut": 1.0,
+      "stats": {
+        "ann_return": 5.1,
+        "ann_vol": 0.62,
+        "sharpe": 8.19,
+        "max_drawdown": -1.63,
+        "total_return": 17.66,
+        "n_periods": 1165
+      },
+      "ci": [
+        6.23,
+        10.33
+      ],
+      "year_sharpe": {
+        "2023": 12.17,
+        "2024": 15.52,
+        "2025": 3.26,
+        "2026": -6.73
+      },
+      "avg_active": 11.83175965665236
+    },
+    {
+      "haircut": 0.75,
+      "stats": {
+        "ann_return": 3.12,
+        "ann_vol": 0.51,
+        "sharpe": 6.17,
+        "max_drawdown": -2.18,
+        "total_return": 10.47,
+        "n_periods": 1165
+      },
+      "ci": [
+        3.89,
+        8.42
+      ],
+      "year_sharpe": {
+        "2023": 9.93,
+        "2024": 14.53,
+        "2025": 0.09,
+        "2026": -9.27
+      },
+      "avg_active": 11.83175965665236
+    },
+    {
+      "haircut": 0.5,
+      "stats": {
+        "ann_return": 1.14,
+        "ann_vol": 0.4,
+        "sharpe": 2.88,
+        "max_drawdown": -3.32,
+        "total_return": 3.72,
+        "n_periods": 1165
+      },
+      "ci": [
+        0.29,
+        5.45
+      ],
+      "year_sharpe": {
+        "2023": 6.23,
+        "2024": 12.59,
+        "2025": -3.72,
+        "2026": -11.89
+      },
+      "avg_active": 11.83175965665236
+    },
+    {
+      "haircut": 0.35,
+      "stats": {
+        "ann_return": -0.04,
+        "ann_vol": 0.34,
+        "sharpe": -0.12,
+        "max_drawdown": -4.08,
+        "total_return": -0.13,
+        "n_periods": 1165
+      },
+      "ci": [
+        -2.73,
+        2.51
+      ],
+      "year_sharpe": {
+        "2023": 2.82,
+        "2024": 10.26,
+        "2025": -6.3,
+        "2026": -13.46
+      },
+      "avg_active": 11.83175965665236
+    },
+    {
+      "haircut": 0.25,
+      "stats": {
+        "ann_return": -0.83,
+        "ann_vol": 0.31,
+        "sharpe": -2.72,
+        "max_drawdown": -4.61,
+        "total_return": -2.62,
+        "n_periods": 1165
+      },
+      "ci": [
+        -5.1,
+        -0.23
+      ],
+      "year_sharpe": {
+        "2023": -0.14,
+        "2024": 7.61,
+        "2025": -8.12,
+        "2026": -14.47
+      },
+      "avg_active": 11.83175965665236
+    }
+  ],
+  "base_stats": {
+    "ann_return": 5.1,
+    "ann_vol": 0.62,
+    "sharpe": 8.19,
+    "max_drawdown": -1.63,
+    "total_return": 17.66,
+    "n_periods": 1165
+  },
+  "base_ci": [
+    6.23,
+    10.33
+  ],
+  "base_year_sharpe": {
+    "2023": 12.17,
+    "2024": 15.52,
+    "2025": 3.26,
+    "2026": -6.73
+  },
+  "gate": "not_challenger",
+  "note": "carry ceiling only; sign-consistency fails and the model still lacks explicit basis/borrow/slippage"
+}

@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-11",
+  "roundup": {
+    "cryptolake": "active",
+    "signals_monitor": "ok/last 04:15 UTC success",
+    "lake_snapshot": "ok/last 04:03 UTC success",
+    "dashboard": "active",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 34,
+    "mem_available_gib": 3.9,
+    "swap_free_gib": 2.8,
+    "outage": false,
+    "live_board": "xsec_momentum active; down -2.72%; 13 assets; 14 trades; board still orange"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + deep Binance funding backfill + TradFi loader sanity + event DB sanity",
+    "sanity": {
+      "event_rows": 35350,
+      "tradfi": {
+        "GC=F": 2393,
+        "^GSPC": 2392
+      }
+    },
+    "window": {
+      "start": "2023-05-03 16:00:00.011000+00:00",
+      "end": "2026-07-11 00:00:00+00:00",
+      "symbols": 12,
+      "search_size": 5
+    },
+    "results": {
+      "raw_ceiling": {
+        "sharpe": 8.19,
+        "ci": [6.23, 10.33],
+        "ann_return_pct": 5.1,
+        "ann_vol_pct": 0.62,
+        "max_drawdown_pct": -1.63,
+        "year_sharpe": {
+          "2023": 12.17,
+          "2024": 15.52,
+          "2025": 3.26,
+          "2026": -6.73
+        }
+      },
+      "realism_stress_0.50": {
+        "sharpe": 2.88,
+        "ci": [0.29, 5.45],
+        "ann_return_pct": 1.14,
+        "ann_vol_pct": 0.4,
+        "max_drawdown_pct": -3.32,
+        "year_sharpe": {
+          "2023": 6.23,
+          "2024": 12.59,
+          "2025": -3.72,
+          "2026": -11.89
+        }
+      },
+      "realism_stress_0.25": {
+        "sharpe": -2.72,
+        "ci": [-5.1, -0.23],
+        "ann_return_pct": -0.83,
+        "ann_vol_pct": 0.31,
+        "max_drawdown_pct": -4.61,
+        "year_sharpe": {
+          "2023": -0.14,
+          "2024": 7.61,
+          "2025": -8.12,
+          "2026": -14.47
+        }
+      }
+    },
+    "gate": "not_challenger",
+    "note": "carry ceiling only; sign-consistency fails and the model still lacks explicit basis/borrow/slippage"
+  }
+}

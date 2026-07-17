@@ -1,0 +1,72 @@
+{
+  "date": "2026-07-07",
+  "roundup": {
+    "cryptolake": "active",
+    "signals_monitor": "ok/inactive",
+    "lake_snapshot": "ok/inactive",
+    "dashboard": "active",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 33,
+    "mem_available_gib": 4.0,
+    "swap_free_gib": 2.7,
+    "outage": false,
+    "live_board": "xsec_momentum active; down -5.37%; board mostly orange"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + deep Binance funding backfill + TradFi loader sanity + event DB sanity",
+    "sanity": {
+      "event_rows": 35350,
+      "event_reaction_rows": 34878,
+      "tradfi": {
+        "GC=F": 2892,
+        "^GSPC": 2892
+      }
+    },
+    "window": {
+      "start": "2019-09-10 00:00:00+00:00",
+      "end": "2026-07-07 00:00:00+00:00",
+      "symbols": 12,
+      "search_size": 5
+    },
+    "results": {
+      "raw_ceiling": {
+        "sharpe": 8.63,
+        "ci": [7.71, 9.78],
+        "ann_return_pct": 12.27,
+        "ann_vol_pct": 1.42,
+        "max_drawdown_pct": -1.63,
+        "year_sharpe": {
+          "2019": 10.77,
+          "2020": 14.8,
+          "2021": 14.37,
+          "2022": 6.85,
+          "2023": 15.17,
+          "2024": 15.52,
+          "2025": 3.26,
+          "2026": -7.05
+        }
+      },
+      "realism_stress_0.25": {
+        "sharpe": 3.31,
+        "ci": [1.69, 4.76],
+        "ann_return_pct": 1.42,
+        "ann_vol_pct": 0.43,
+        "max_drawdown_pct": -4.61,
+        "year_sharpe": {
+          "2019": 8.03,
+          "2020": 10.64,
+          "2021": 11.93,
+          "2022": -4.84,
+          "2023": 1.63,
+          "2024": 7.61,
+          "2025": -8.12,
+          "2026": -14.81
+        }
+      }
+    },
+    "gate": "not_challenger",
+    "note": "carry ceiling only; sign-consistency fails and the model still lacks explicit basis/borrow/slippage"
+  }
+}

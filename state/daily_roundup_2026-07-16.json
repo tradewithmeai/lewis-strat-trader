@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-16",
+  "roundup": {
+    "cryptolake": "active/running",
+    "signals_monitor": "inactive by design; last run 04:15 UTC success",
+    "lake_snapshot": "inactive by design; last run 04:54 UTC success",
+    "dashboard": "active/running",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 35,
+    "mem_available_gib": 3.1,
+    "swap_free_gib": 2.4,
+    "outage": false,
+    "live_board": "xsec_momentum -2.68%; 13 assets; 15 trades; board orange/red"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + funding_history + event_db + tradfi_data; fixed 7d rolling-sign carry, 5bp/leg, 12 USDT perps; forward API-capped refresh",
+    "sanity": {
+      "event_rows": 35350,
+      "tradfi": {
+        "GC=F": 2899,
+        "^GSPC": 2899
+      }
+    },
+    "window": {
+      "start": "2023-05-03 00:00:00+00:00",
+      "end": "2026-07-16 00:00:00+00:00",
+      "symbols": 12,
+      "search_size": 5
+    },
+    "results": {
+      "carry_raw": {
+        "sharpe": 8.22,
+        "ci": [6.22, 10.28],
+        "ann_return_pct": 5.09,
+        "ann_vol_pct": 0.62,
+        "max_drawdown_pct": -1.63,
+        "year_sharpe": {
+          "2023": 12.45,
+          "2024": 15.52,
+          "2025": 3.26,
+          "2026": -6.37
+        }
+      },
+      "carry_stress_0.50": {
+        "sharpe": 2.89,
+        "ci": [0.31, 5.41],
+        "ann_return_pct": 1.14,
+        "ann_vol_pct": 0.4,
+        "max_drawdown_pct": -3.32,
+        "year_sharpe": {
+          "2023": 6.39,
+          "2024": 12.59,
+          "2025": -3.72,
+          "2026": -11.57
+        }
+      },
+      "carry_stress_0.25": {
+        "sharpe": -2.73,
+        "ci": [-5.07, -0.31],
+        "ann_return_pct": -0.83,
+        "ann_vol_pct": 0.3,
+        "max_drawdown_pct": -4.61,
+        "year_sharpe": {
+          "2023": -0.17,
+          "2024": 7.61,
+          "2025": -8.12,
+          "2026": -14.18
+        }
+      }
+    },
+    "gate": "not_challenger",
+    "note": "carry remains a perfect-hedge ceiling; explicit basis / borrow / slippage model still needed; two-sleeve combo left as next thread"
+  }
+}

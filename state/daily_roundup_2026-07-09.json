@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-09",
+  "roundup": {
+    "cryptolake": "active",
+    "signals_monitor": "ok/inactive",
+    "lake_snapshot": "ok/inactive",
+    "dashboard": "active",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 34,
+    "mem_available_gib": 4.2,
+    "swap_free_gib": 2.8,
+    "outage": false,
+    "live_board": "xsec_momentum active; down -4.83%; 13 assets; 14 trades; board mostly orange"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + deep Binance funding backfill + TradFi loader sanity + event DB sanity",
+    "sanity": {
+      "event_rows": 35350,
+      "tradfi": {
+        "GC=F": 2894,
+        "^GSPC": 2894
+      }
+    },
+    "window": {
+      "start": "2023-05-03 00:00:00+00:00",
+      "end": "2026-07-09 00:00:00+00:00",
+      "symbols": 12,
+      "search_size": 5
+    },
+    "results": {
+      "raw_ceiling": {
+        "sharpe": 8.21,
+        "ci": [6.24, 10.14],
+        "ann_return_pct": 5.1,
+        "ann_vol_pct": 0.62,
+        "max_drawdown_pct": -1.63,
+        "year_sharpe": {
+          "2023": 12.45,
+          "2024": 15.52,
+          "2025": 3.26,
+          "2026": -7.02
+        }
+      },
+      "realism_stress_0.50": {
+        "sharpe": 2.88,
+        "ci": [0.24, 5.34],
+        "ann_return_pct": 1.14,
+        "ann_vol_pct": 0.4,
+        "max_drawdown_pct": -3.32,
+        "year_sharpe": {
+          "2023": 6.39,
+          "2024": 12.59,
+          "2025": -3.72,
+          "2026": -12.14
+        }
+      },
+      "realism_stress_0.25": {
+        "sharpe": -2.74,
+        "ci": [-5.21, -0.27],
+        "ann_return_pct": -0.84,
+        "ann_vol_pct": 0.31,
+        "max_drawdown_pct": -4.61,
+        "year_sharpe": {
+          "2023": -0.17,
+          "2024": 7.61,
+          "2025": -8.12,
+          "2026": -14.68
+        }
+      }
+    },
+    "gate": "not_challenger",
+    "note": "carry ceiling only; sign-consistency fails and the model still lacks explicit basis/borrow/slippage"
+  }
+}

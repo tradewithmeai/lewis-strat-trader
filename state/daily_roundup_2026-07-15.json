@@ -1,0 +1,99 @@
+{
+  "date": "2026-07-15",
+  "roundup": {
+    "cryptolake": "active/running",
+    "signals_monitor": "inactive by design; last run 04:15 UTC success",
+    "lake_snapshot": "inactive by design; last run 04:15 UTC success",
+    "dashboard": "active/running",
+    "dashboard_http": 200,
+    "api_http": 200,
+    "disk_used_pct": 35,
+    "mem_available_gib": 4.2,
+    "swap_free_gib": 3.1,
+    "outage": false,
+    "live_board": "xsec_momentum -3.11%; 13 assets; 15 trades; board orange"
+  },
+  "research": {
+    "thread": "cash-and-carry hardening",
+    "method": "cash_and_carry_backtest + funding_history + event_db + tradfi_data; fixed 7d rolling-sign carry, 5bp/leg, 12 USDT perps; forward API-capped refresh",
+    "sanity": {
+      "event_rows": 35350,
+      "tradfi": {
+        "GC=F": 2898,
+        "^GSPC": 2898
+      }
+    },
+    "window": {
+      "start": "2026-01-29 00:00:00+00:00",
+      "end": "2026-07-15 00:00:00+00:00",
+      "symbols": 12,
+      "search_size": 3
+    },
+    "results": {
+      "carry_raw": {
+        "sharpe": -7.8,
+        "ci": [-12.14, -5.06],
+        "ann_return_pct": -3.02,
+        "ann_vol_pct": 0.39,
+        "max_drawdown_pct": -1.51,
+        "year_sharpe": {
+          "2026": -7.8
+        }
+      },
+      "carry_stress_0.50": {
+        "sharpe": -12.21,
+        "ci": [-16.5, -9.89],
+        "ann_return_pct": -4.43,
+        "ann_vol_pct": 0.36,
+        "max_drawdown_pct": -2.06,
+        "year_sharpe": {
+          "2026": -12.21
+        }
+      },
+      "carry_stress_0.25": {
+        "sharpe": -14.35,
+        "ci": [-18.74, -12.28],
+        "ann_return_pct": -5.13,
+        "ann_vol_pct": 0.36,
+        "max_drawdown_pct": -2.34,
+        "year_sharpe": {
+          "2026": -14.35
+        }
+      },
+      "tradfi_diversified_trend_probe": {
+        "sharpe": 0.51,
+        "ci": [-0.07, 1.08],
+        "ann_return_pct": 5.89,
+        "ann_vol_pct": 11.6,
+        "max_drawdown_pct": -21.17,
+        "year_sharpe": {
+          "2015": 0.66,
+          "2016": 1.01,
+          "2017": 1.13,
+          "2018": -1.02,
+          "2019": 1.33,
+          "2020": -0.27,
+          "2021": 0.71,
+          "2022": -0.91,
+          "2023": 1.3,
+          "2024": 2.18,
+          "2025": 1.01,
+          "2026": 0.84
+        }
+      },
+      "two_sleeve_combo_state": {
+        "sharpe": 1.58,
+        "ci": [0.79, 2.75],
+        "year_sharpe": {
+          "2023": 1.09,
+          "2024": 4.74,
+          "2025": 0.63,
+          "2026": -0.24
+        },
+        "verdict": "not_challenger"
+      }
+    },
+    "gate": "not_challenger",
+    "note": "carry is a negative forward slice and the existing two-sleeve combo still fails sign consistency in 2026"
+  }
+}
