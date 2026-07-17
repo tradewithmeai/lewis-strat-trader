@@ -1,0 +1,5 @@
+# Shell scripts run on Linux (the VPS) — force LF so a checkout on any OS can't
+# produce CRLF line endings that break bash (`\r' command not found`, bad shebang).
+*.sh    text eol=lf
+scripts/post-commit text eol=lf
+*.conf  text eol=lf
