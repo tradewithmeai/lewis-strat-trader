@@ -1217,3 +1217,44 @@ integrity check.
 **Next:** Owner picks target box + window (plan §12); fix the dream-prompt rut
 clause + register the weekly community cron when next briefing Darren;
 migration executes per the plan's phase gates.
+
+## 2026-07-17 03:15 UTC — Off-box backup audit + extend snapshot to the irreplaceable state [commit pending]
+**Context:** Owner asked whether the VPS data is actually backed up to Google
+Drive — "we planned this but I don't think we finished it." Audited the real
+state of the gdrive backup before answering.
+**Did / found:**
+- Two backup units existed. `lake-snapshot` (dated tarball → `gdrive:crypto-lake-snapshots`)
+  is working + current: 13 daily parquet tarballs Jul 4-16, ~3.9G each, 46.4 GiB
+  total, 14-day retention. `lake-backup` (additive `rclone copy` →
+  `gdrive:crypto-lake`) is DEAD — disabled, last ran ~Jun 12, only 78.8 MiB /
+  2,318 files (an abandoned first attempt). This is the "didn't finish it".
+- **Gap:** three things had ZERO off-box copies — the live paper-race record
+  (`state/paper_accounts.json` 5.7KB + `equity_history.jsonl` 1.18MB; gitignored,
+  so single-copy on the box — losing it resets the whole public race), Darren's
+  `~/.hermes` state (memories, 16 days of cron output, `state.db` session
+  history), and `data/raw` (5.2G).
+- Extended `lake_snapshot.sh` to add a second tarball `stratbot-state-<date>.tar`:
+  repo `state/` + `~/.hermes` (memories, cron, state.db, gateway_state,
+  .hermes_history), 60-day retention. **Excludes `~/.hermes/auth.json`** (a live
+  Telegram/provider token — deliberately kept out of cloud backup, given this
+  project's history with an exposed token) and `data/raw` (deferred per owner).
+  Robust to live-file "changed as we read it" (uploads any non-empty tarball).
+  Neither tarball's failure skips the other; service still exits non-zero so the
+  -failure hook fires. Script now version-controlled at `scripts/lake_snapshot.sh`
+  (was only on the box).
+**Tested:** Deployed (syntax + BOM checked, old script `.bak`'d), ran end-to-end
+`run exit=0`: lake tar 3.7G uploaded, state tar 94M uploaded. **Round-trip
+verified** — downloaded `stratbot-state-2026-07-17.tar` back from Drive: contains
+`state/paper_accounts.json` + `state/equity_history.jsonl` (race record ✓),
+`.hermes/memories/MEMORY.md` + `cron/jobs.json` + `state.db` (Darren ✓),
+`auth.json` count = **0** (secret correctly excluded ✓), 117 entries. First state
+restore-point is in Drive now; 04:00 timer continues daily.
+**Decided:** snapshot canonical + covers state; lake-backup confirmed dead (don't
+migrate). Resolves migration open-decision #3. auth.json stays out of cloud
+backup by design; raw deferred (~5.6GB/60d for state is fine; raw would ~double
+daily upload).
+**Dead-ends / caveats:** state.db is a hot copy (WAL-recoverable, not a
+`sqlite3 .backup` consistent snapshot) — acceptable vs zero backups; can harden
+later. `data/raw` still unbacked (owner will revisit).
+**Next:** owner to decide on raw-data backup; migration plan §0/§2.4/§12 updated
+to reflect the resolved backup topology.

@@ -36,9 +36,9 @@ in below).
 | `cryptolake.service` | system | crypto-lake-rs collector + lake API :8000 (`target/release/crypto-lake-rs --config config.yml --no-tray --retention-days 0`, WorkingDirectory `~/crypto-lake-rs`) |
 | `cryptolake-failure.service` | system | alert notifier hook (ExecStart/token → Phase-0 sweep) |
 | `stratbot-dashboard.service` | system | Streamlit on 127.0.0.1:8501 from repo `.venv` |
-| `lake-snapshot.service` + `.timer` | system | daily 04:00 gdrive tarball via `/home/kc-user/lake_snapshot.sh` (rclone) |
+| `lake-snapshot.service` + `.timer` | system | daily 04:00 gdrive tarball via `/home/kc-user/lake_snapshot.sh` (rclone). **Canonical backup.** As of 2026-07-17 it uploads TWO dated tarballs to `gdrive:crypto-lake-snapshots`: `crypto-lake-*.tar` (parquet, 14-day retention) + `stratbot-state-*.tar` (repo `state/` race record + `~/.hermes` memories/cron/state.db, 60-day retention; excludes `auth.json` + `data/raw`). Script now version-controlled at `scripts/lake_snapshot.sh` |
 | `lake-snapshot-failure.service` | system | alert hook |
-| `lake-backup.service` + `.timer` | system | **Phase-0 blocker: read its ExecStart + schedule, decide canonical vs dead. It does NOT get enabled on the new box unless explicitly ruled canonical** |
+| `lake-backup.service` + `.timer` | system | **DEAD — do not migrate/enable.** Confirmed 2026-07-17: disabled + inactive, last ran ~2026-06-12, only 78.8 MiB partial (superseded first attempt). `gdrive:crypto-lake` is its stale stub |
 | `reflect-daily.service` + `.timer` | system | nightly walk-forward reflect 00:20 (can run long on 2 vCPU) |
 | `signals-monitor.service` + `.timer` (+ `-failure`, `-failure@`) | system | 04:15 signals run |
 | `paper-trader.service` | **user** | the live $1,000 race engine — sole writer of `state/paper_accounts.json`, `equity_history.jsonl`, `status.json` |
@@ -122,8 +122,9 @@ Do **not** copy:
 3. Run the **unit sweep**, **/etc sweep**, and **env sweep** from §0; commit the
    manifests (`pip freeze` × both venvs, unit list + drop-ins, file count + du
    -sb per data dir, current DNS TTLs) to the repo.
-4. **Resolve `lake-backup` vs `lake-snapshot`** (read both unit files; decide
-   canonical; record the verdict — it drives the §6 enable list).
+4. `lake-backup` vs `lake-snapshot` — **resolved 2026-07-17**: `lake-snapshot`
+   is canonical (now covers lake + state); `lake-backup` is dead (do not
+   migrate or enable it). No further action beyond not carrying it forward.
 5. **[CAPTAIN]** Provision target (§1 spec); add Captain's SSH key; create the
    `ssh stratbot-new` alias in Windows `~/.ssh/config` (old alias keeps
    pointing at the old box **until §8 step 3** — every runbook line below says
@@ -395,7 +396,7 @@ cron fails 2 consecutive days; §8.2 checksum verify fails irrecoverably.
 
 1. **Target provider/spec** (§1 — the 8-16G RAM recommendation).
 2. **Migration window date** (~09:00-11:00 UTC weekday; entry gates in §6).
-3. `lake-backup` vs `lake-snapshot` — resolved in Phase 0 **before** any enable
-   list is executed (it is a pre-flight blocker, not a loose end).
+3. ~~`lake-backup` vs `lake-snapshot`~~ — **resolved** (see §2.4): snapshot
+   canonical + now covers state, lake-backup dead.
 4. Whether to keep the old box a full billing cycle as cold standby (§9.5
    argues yes — it is the rollback target and the post-mortem evidence).
