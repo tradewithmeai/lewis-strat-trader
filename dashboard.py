@@ -32,6 +32,47 @@ st.set_page_config(
     layout="wide",
 )
 
+# ── solvX shared analytics + SEO tags ─────────────────────────────────────────────
+# Streamlit renders client-side and strips inline <script> from st.markdown, so we
+# inject into the TOP document from a zero-height component iframe (window.parent).
+# Adds the same first-party analytics.js used across all solvx.uk properties, plus a
+# canonical + Open Graph tags Googlebot picks up when it renders the page. Idempotent.
+components.html(
+    """
+    <script>
+    (function () {
+      var d = window.parent.document, h = d.head;
+      if (!d.getElementById('solvx-analytics')) {
+        var s = d.createElement('script');
+        s.id = 'solvx-analytics'; s.src = 'https://solvx.uk/analytics.js'; s.defer = true;
+        h.appendChild(s);
+      }
+      if (!d.querySelector('link[rel="canonical"]')) {
+        var c = d.createElement('link'); c.rel = 'canonical';
+        c.href = 'https://stratbot.solvx.uk/'; h.appendChild(c);
+      }
+      if (!d.querySelector('meta[name="description"]')) {
+        var md = d.createElement('meta'); md.name = 'description';
+        md.content = 'A live, auto-updating quant strategy tournament — walk-forward Sharpe, drawdown and regime folds across challenger strategies. By solvX.';
+        h.appendChild(md);
+      }
+      var og = {
+        'og:title': 'StratBot — live strategy tournament',
+        'og:description': 'A live quant strategy tournament: walk-forward Sharpe, drawdown and regime folds across challenger strategies.',
+        'og:type': 'website', 'og:url': 'https://stratbot.solvx.uk/', 'og:site_name': 'solvX'
+      };
+      Object.keys(og).forEach(function (k) {
+        if (!d.querySelector('meta[property="' + k + '"]')) {
+          var m = d.createElement('meta'); m.setAttribute('property', k);
+          m.setAttribute('content', og[k]); h.appendChild(m);
+        }
+      });
+    })();
+    </script>
+    """,
+    height=0,
+)
+
 # ── Theme (quant terminal: charcoal + purple accent + traffic-light greens) ─────
 st.markdown(
     """
