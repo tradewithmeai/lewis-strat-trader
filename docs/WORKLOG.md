@@ -1258,3 +1258,45 @@ daily upload).
 later. `data/raw` still unbacked (owner will revisit).
 **Next:** owner to decide on raw-data backup; migration plan §0/§2.4/§12 updated
 to reflect the resolved backup topology.
+
+## 2026-07-17 13:40 UTC — Full Drive backup (raw added) + one-click restore-from-Drive tooling [commit pending]
+**Context:** Owner confirmed the Drive backup is visible/working and wants to move
+the VPS to a cheaper provider "one-click easy", with data safety as the gating
+concern. Reframed the migration: since the stack backs up to Drive, migration
+becomes provision→restore→DNS rather than a live box-to-box transfer.
+**Did:**
+- Completed the DATA backup: `lake_snapshot.sh` now uploads THREE tarballs
+  (state 60d / parquet 14d / **raw 4d**), state-first (critical + smallest goes
+  up in seconds), with a flock single-writer guard (manual run can't collide with
+  the 04:00 timer) and a reusable upload_tar helper. raw = 5.3G / 707k files, so
+  a tarball (not a file mirror — Drive rate limits) is correct.
+- Built the restore-from-Drive tooling: `scripts/export_bootstrap.sh` (captures
+  the two off-Drive bundles: secrets+infra, and the Hermes runtime), 
+  `scripts/restore_from_drive.sh` (one script: deps→secrets→repos→binary→pull
+  data from Drive→units+nginx→start services), and HTTP-only nginx templates
+  `scripts/nginx/{stratbot,lake}.conf`. Rewrote the migration doc around Path A
+  (restore-from-Drive, recommended) with the hardened box-to-box plan kept as §B.
+- Inventoried the full restore BOM: found two items backed up nowhere
+  (`~/bin/telegram-failure-alert.py` + `signals-alert.env` alert token) and that
+  Hermes' install source is unrecorded (not a git repo) → ship its runtime whole.
+**Tested:** Deployed v3 snapshot, ran end-to-end: state 95M + lake 3.8G uploaded
+OK, raw building at commit time. Round-trip re-verified the state tarball:
+**auth.json count = 0**, race record 2/2 present. Adversarial 2-lens review of
+the export+restore scripts (correctness / export↔restore contract) returned 18
+findings — ALL integrated before commit.
+**Decided:** Drive = data (auto daily); two off-cloud bundles = secrets+infra +
+hermes runtime (rclone token can't live on the Drive it unlocks). Dropped global
+`set -e` from restore (a long provisioner must not abort half-built on benign
+non-zero — the review's most common failure mode); explicit `die` on must-succeed
+steps only. HTTP-only nginx templates instead of sed-stripping certbot output
+(the review showed the sed corrupts nginx configs). First-run guard so a re-run
+never clobbers the live race record. Hermes install BEFORE Drive-state overlay so
+restored memory wins. auth.json defensively `--exclude`d from the state tar.
+**Dead-ends / caveats:** review's "auth.json reaches Drive" was a FALSE POSITIVE
+(traced to a sloppy comment; verified 0 by round-trip twice) — kept the defensive
+exclude anyway. Restore is authored + reviewed but NOT executed end-to-end (no
+spare box); it runs for real at migration time. raw upload still completing at
+commit; confirmed separately. Stale crypto-lake-2026-07-03.tar (3.5G) left in
+staging from a Jul-3 failed cleanup — to be removed.
+**Next:** confirm raw landed; owner runs export_bootstrap + picks a target box +
+window; dry-run the restore on a throwaway box before the real cutover if possible.

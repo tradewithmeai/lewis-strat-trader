@@ -1,13 +1,88 @@
 # VPS full migration plan — lock, stock, the whole lot (2026-07-17)
 
 Migrate **everything** off the current VPS (`stratbot`, 185.44.253.199, Ubuntu
-24.04.4, 2 vCPU / 5.7G RAM / 96G disk, 34G used) to a new box: the crypto lake
+24.04.4, 2 vCPU / 5.7G RAM / 96G disk, 34G used) to a cheaper box: the crypto lake
 with all files, the Hermes agent ("Darren") with all its state, the live
 dashboard + paper race, all timers, nginx/TLS, and the secrets that glue it
-together. Grounded in a live inventory taken 2026-07-17 (all services healthy,
-repo synced at `8085d5d`), then hardened by a three-lens adversarial review
-(data integrity / cutover ordering / completeness+secrets — 34 findings folded
-in below).
+together. Grounded in a live inventory taken 2026-07-17.
+
+## Two ways to do this — pick by how much downtime you'll tolerate
+
+**➤ PATH A — restore from Drive (RECOMMENDED: cheap, simple, ~near-one-click).**
+Because the full stack now backs up to Google Drive daily (data) plus a one-off
+bootstrap bundle (secrets + infra), a migration is just: provision a cheap box →
+copy one bundle over → run one script → point DNS. Accepts a short data gap
+(minutes-to-hours, whatever's between the last nightly backup and cutover — fine
+for this project, nothing trades real money). **This is the plan below (§A).**
+
+**PATH B — box-to-box live transfer (zero-downtime, complex).** Direct old→new
+tar/rsync with a tight cutover and a 7-day soak. Only worth the complexity if you
+need an unbroken lake with no gap. Preserved, fully hardened (34-finding
+adversarial review), as **Appendix B** at the bottom.
+
+Both rely on the same backup topology (§0) and the same [CAPTAIN] manual steps.
+
+---
+
+# §A. Restore-from-Drive migration (the recommended path)
+
+Three artifacts make a new box a full clone:
+1. **Google Drive** `gdrive:crypto-lake-snapshots/` — the DATA, refreshed nightly
+   by `scripts/lake_snapshot.sh`: `stratbot-state-*.tar` (race record + Darren),
+   `crypto-lake-*.tar` (parquet), `crypto-raw-*.tar` (raw). Pulled by the restore.
+2. **Two off-cloud bundles** from `scripts/export_bootstrap.sh` — **you keep
+   these off Drive** (one holds the very token that reaches Drive, so it can't
+   live *on* Drive). Regenerate only when infra/secrets change.
+   - `stratbot-bootstrap-*.tgz` (~16 MB, password-manager it): secrets (rclone
+     token, ssh deploy keys, `auth.json`, alert token, htpasswd), all systemd
+     units + drop-ins, the collector binary, helper scripts, MANIFEST.
+   - `stratbot-hermes-*.tgz` (larger, keep on safe disk): the Hermes agent
+     **runtime** (code, node, venv, skills) minus the state that's in Drive and
+     minus caches. Hermes isn't in a repo and its original install command isn't
+     recorded, so shipping the runtime whole is the only reliable rebuild.
+   - nginx is NOT captured here — `scripts/nginx/{stratbot,lake}.conf` (HTTP-only,
+     in the repo) are canonical; certbot adds TLS on the new box.
+3. **GitHub** — both repos (`lewis-strat-trader`, `crypto-lake-rs`) clone fresh;
+   Python deps come from the committed `uv.lock`.
+
+### Prep (do now, once — mostly done 2026-07-17)
+- [x] Data backup covers state + parquet + raw (`scripts/lake_snapshot.sh`, live).
+- [ ] **[CAPTAIN]** run `bash scripts/export_bootstrap.sh` on the box; `scp` BOTH
+      files down (`stratbot-bootstrap-*.tgz` + `stratbot-hermes-*.tgz`); store the
+      bootstrap tgz in your password manager and the hermes tgz on safe disk;
+      then remove both from the box. Refresh after any infra/secret change.
+
+### Migrate (the ~one-click part)
+1. **[CAPTAIN]** Provision a cheap Ubuntu 24.04 x86_64 box (see §1 spec); create
+   `kc-user` with passwordless sudo; add your SSH key.
+2. **[CAPTAIN]** Lower both DNS A-record TTLs to 300 at least a day ahead (§2.6).
+3. Copy both bundles to the new box and run the restore:
+   ```bash
+   scp stratbot-bootstrap-*.tgz stratbot-hermes-*.tgz newbox:~/
+   ssh newbox 'git clone git@github.com:tradewithmeai/lewis-strat-trader.git /tmp/lst \
+     && bash /tmp/lst/scripts/restore_from_drive.sh ~/stratbot-bootstrap-*.tgz'
+   ```
+   (the restore auto-detects the `stratbot-hermes-*.tgz` sitting beside the bundle)
+   The script (`scripts/restore_from_drive.sh`) installs deps, drops in the
+   secrets, clones the repos, restores the binary, **pulls the newest data
+   tarballs from Drive**, lays down the units + nginx (TLS-less), and starts the
+   services in dependency order. It pauses at the steps only you can do.
+4. **[CAPTAIN]** `claude auth login` → verify `subscriptionType: max`.
+5. **[CAPTAIN]** `rclone lsd gdrive:` — if Google balks at the new IP,
+   `rclone config reconnect gdrive:`.
+6. **[CAPTAIN]** Flip both DNS A-records to the new IP; once resolving,
+   `sudo certbot --nginx -d stratbot.solvx.uk -d lake.solvx.uk`.
+7. Verify (§7 checklist): board equities continued (no reset), lake API 200 and
+   writing, dashboard 200, Darren's next 05:00 dream fires. Then enable
+   `lake-consolidate.timer`. Keep the old box off but intact for a few days, then
+   destroy it.
+
+### The data gap, honestly
+The new box's lake starts from the **last nightly tarball** (04:00 UTC) plus
+whatever the new collector gathers from its start. Bars between the last backup
+and the new collector's first write are **not** carried over — an expected,
+bounded gap (hours at most). Hourly strategies and the paper race tolerate it;
+the gap is logged. If you ever need zero gap, that's Path B.
 
 **Guiding rules** (learned the hard way, recorded in the worklog):
 - **Copy bytes, never process during transfer.** tar/rsync raw files; no
@@ -27,6 +102,15 @@ in below).
   Anthropic) are tagged **[CAPTAIN]** and collected in §11.
 
 ---
+
+# Shared reference + §B (box-to-box zero-downtime path)
+
+The sections below are both (a) **shared references** used by *both* paths — §0
+bill of materials, §1 target spec, §2.6 DNS TTL, §7 verification, §11 [CAPTAIN]
+checklist, §12 open decisions — and (b) the detailed **Path B** box-to-box
+runbook (§2–§6 transfer/cutover, §8 soak, §9 rollback). Path A (restore from
+Drive, above) reuses the shared references and skips the Path-B transfer
+mechanics. The 34-finding adversarial review hardened the Path-B steps.
 
 ## 0. Bill of materials (what exists — the transfer checklist)
 
