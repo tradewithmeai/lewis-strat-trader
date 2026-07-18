@@ -1300,3 +1300,10 @@ commit; confirmed separately. Stale crypto-lake-2026-07-03.tar (3.5G) left in
 staging from a Jul-3 failed cleanup — to be removed.
 **Next:** confirm raw landed; owner runs export_bootstrap + picks a target box +
 window; dry-run the restore on a throwaway box before the real cutover if possible.
+
+## 2026-07-17 14:00 UTC — Backup/migration session: completion confirmations [commit pending]
+Closing the loop on the two entries above (raw backup + restore tooling):
+- **raw backup CONFIRMED in Drive**: the v3 run finished rc=0 — `crypto-raw-2026-07-17.tar` (4.2G) uploaded 13:36→13:40 (whole 3-tarball run ~20 min, faster than feared). Drive folder now 54.1 GiB / 16 objects (state 99M + parquet 4.0G + raw 4.2G today). Defensive-exclude `lake_snapshot.sh` deployed to the box; stale 3.5G `crypto-lake-2026-07-03.tar` cleared from staging (disk 32% used).
+- **export tooling PROVEN end-to-end**: ran `export_bootstrap.sh` on the box — produced a valid 6.0M bootstrap bundle (all required entries; 14 unit files incl. the `admin.conf`/`10-onfailure.conf` drop-ins) + an 884M hermes runtime tarball; security check **0 Claude credentials**; both shredded off the box after verification. Fixed a cosmetic MANIFEST gap (blank node/claude versions from PATH) in a follow-up commit.
+- **restore tooling** remains authored + 18-finding-reviewed but NOT run against a real box — flagged to owner; recommended a throwaway-box dry-run before the real cutover.
+Net: the VPS is now fully backed up to Drive (data) and migration-ready via restore-from-Drive; only the owner's export-bundle step + a target box remain.
